@@ -41,4 +41,19 @@ return [
         'token' => env('TMDB_ACCESS_TOKEN'),
     ],
 
+    'opensubtitles' => [
+        'api_key' => env('OPENSUBTITLES_API_KEY'),
+        'username' => env('OPENSUBTITLES_USERNAME'),
+        'password' => env('OPENSUBTITLES_PASSWORD'),
+    ],
+
+    'subdl' => [
+        'api_key' => env('SUBDL_API_KEY'), // Optional - works without API key
+    ],
+
+    'scraper_api' => [
+        'url' => env('SCRAPER_API_URL', 'https://scraperapi-murex.vercel.app'),
+        'key' => env('SCRAPER_API_KEY'),
+    ],
+
 ];

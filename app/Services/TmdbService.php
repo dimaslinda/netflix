@@ -20,10 +20,17 @@ class TmdbService
         $this->token = config('services.tmdb.token');
     }
 
-    public function getTrending(?int $providerId = null, string $region = 'ID')
+    public function getTrending(?int $providerId = null, string $region = 'ID', int $page = 1)
     {
         if ($providerId === null) {
-            return $this->fetch('/trending/all/week?language=en-US');
+            $params = [
+                'language' => 'en-US',
+                'page' => $page,
+            ];
+
+            $queryString = http_build_query($params);
+
+            return $this->fetch("/trending/all/week?{$queryString}");
         }
 
         $params = [
@@ -32,6 +39,7 @@ class TmdbService
             'with_watch_providers' => $providerId,
             'watch_region' => $region,
             'with_watch_monetization_types' => 'flatrate',
+            'page' => $page,
         ];
 
         $queryString = http_build_query($params);
@@ -39,12 +47,40 @@ class TmdbService
         return $this->fetch("/discover/movie?{$queryString}");
     }
 
-    public function getTopRated(?int $providerId = null, string $region = 'ID')
+    public function getTrendingTv(?int $providerId = null, string $region = 'ID', int $page = 1)
+    {
+        if ($providerId === null) {
+            $params = [
+                'language' => 'en-US',
+                'page' => $page,
+            ];
+
+            $queryString = http_build_query($params);
+
+            return $this->fetch("/trending/tv/week?{$queryString}");
+        }
+
+        $params = [
+            'language' => 'en-US',
+            'sort_by' => 'popularity.desc',
+            'with_watch_providers' => $providerId,
+            'watch_region' => $region,
+            'with_watch_monetization_types' => 'flatrate',
+            'page' => $page,
+        ];
+
+        $queryString = http_build_query($params);
+
+        return $this->fetch("/discover/tv?{$queryString}");
+    }
+
+    public function getTopRated(?int $providerId = null, string $region = 'ID', int $page = 1)
     {
         $params = [
             'language' => 'en-US',
             'sort_by' => 'vote_average.desc',
             'vote_count.gte' => 500,
+            'page' => $page,
         ];
 
         if ($providerId !== null) {
@@ -58,12 +94,33 @@ class TmdbService
         return $this->fetch("/discover/movie?{$queryString}");
     }
 
-    public function getActionMovies(?int $providerId = null, string $region = 'ID')
+    public function getTopRatedTv(?int $providerId = null, string $region = 'ID', int $page = 1)
+    {
+        $params = [
+            'language' => 'en-US',
+            'sort_by' => 'vote_average.desc',
+            'vote_count.gte' => 200,
+            'page' => $page,
+        ];
+
+        if ($providerId !== null) {
+            $params['with_watch_providers'] = $providerId;
+            $params['watch_region'] = $region;
+            $params['with_watch_monetization_types'] = 'flatrate';
+        }
+
+        $queryString = http_build_query($params);
+
+        return $this->fetch("/discover/tv?{$queryString}");
+    }
+
+    public function getActionMovies(?int $providerId = null, string $region = 'ID', int $page = 1)
     {
         $params = [
             'with_genres' => 28,
             'language' => 'en-US',
             'sort_by' => 'popularity.desc',
+            'page' => $page,
         ];
 
         if ($providerId !== null) {
@@ -77,12 +134,13 @@ class TmdbService
         return $this->fetch("/discover/movie?{$queryString}");
     }
 
-    public function getComedyMovies(?int $providerId = null, string $region = 'ID')
+    public function getComedyMovies(?int $providerId = null, string $region = 'ID', int $page = 1)
     {
         $params = [
             'with_genres' => 35,
             'language' => 'en-US',
             'sort_by' => 'popularity.desc',
+            'page' => $page,
         ];
 
         if ($providerId !== null) {
@@ -96,12 +154,13 @@ class TmdbService
         return $this->fetch("/discover/movie?{$queryString}");
     }
 
-    public function getHorrorMovies(?int $providerId = null, string $region = 'ID')
+    public function getHorrorMovies(?int $providerId = null, string $region = 'ID', int $page = 1)
     {
         $params = [
             'with_genres' => 27,
             'language' => 'en-US',
             'sort_by' => 'popularity.desc',
+            'page' => $page,
         ];
 
         if ($providerId !== null) {
@@ -115,12 +174,13 @@ class TmdbService
         return $this->fetch("/discover/movie?{$queryString}");
     }
 
-    public function getRomanceMovies(?int $providerId = null, string $region = 'ID')
+    public function getRomanceMovies(?int $providerId = null, string $region = 'ID', int $page = 1)
     {
         $params = [
             'with_genres' => 10749,
             'language' => 'en-US',
             'sort_by' => 'popularity.desc',
+            'page' => $page,
         ];
 
         if ($providerId !== null) {
@@ -134,12 +194,13 @@ class TmdbService
         return $this->fetch("/discover/movie?{$queryString}");
     }
 
-    public function getDocumentaries(?int $providerId = null, string $region = 'ID')
+    public function getDocumentaries(?int $providerId = null, string $region = 'ID', int $page = 1)
     {
         $params = [
             'with_genres' => 99,
             'language' => 'en-US',
             'sort_by' => 'popularity.desc',
+            'page' => $page,
         ];
 
         if ($providerId !== null) {
@@ -151,6 +212,285 @@ class TmdbService
         $queryString = http_build_query($params);
 
         return $this->fetch("/discover/movie?{$queryString}");
+    }
+
+    public function getAnimationMovies(?int $providerId = null, string $region = 'ID', int $page = 1)
+    {
+        $params = [
+            'with_genres' => 16,
+            'language' => 'en-US',
+            'sort_by' => 'popularity.desc',
+            'page' => $page,
+        ];
+
+        if ($providerId !== null) {
+            $params['with_watch_providers'] = $providerId;
+            $params['watch_region'] = $region;
+            $params['with_watch_monetization_types'] = 'flatrate';
+        }
+
+        $queryString = http_build_query($params);
+
+        return $this->fetch("/discover/movie?{$queryString}");
+    }
+
+    public function getAnimeMovies(?int $providerId = null, string $region = 'ID', int $page = 1)
+    {
+        $params = [
+            'with_genres' => 16,
+            'language' => 'en-US',
+            'sort_by' => 'popularity.desc',
+            'with_original_language' => 'ja',
+            'page' => $page,
+        ];
+
+        if ($providerId !== null) {
+            $params['with_watch_providers'] = $providerId;
+            $params['watch_region'] = $region;
+            $params['with_watch_monetization_types'] = 'flatrate';
+        }
+
+        $queryString = http_build_query($params);
+
+        return $this->fetch("/discover/movie?{$queryString}");
+    }
+
+    // NEW CATEGORIES
+
+    public function getThrillerMovies(?int $providerId = null, string $region = 'ID', int $page = 1)
+    {
+        $params = [
+            'with_genres' => 53,
+            'language' => 'en-US',
+            'sort_by' => 'popularity.desc',
+            'page' => $page,
+        ];
+
+        if ($providerId !== null) {
+            $params['with_watch_providers'] = $providerId;
+            $params['watch_region'] = $region;
+            $params['with_watch_monetization_types'] = 'flatrate';
+        }
+
+        $queryString = http_build_query($params);
+
+        return $this->fetch("/discover/movie?{$queryString}");
+    }
+
+    public function getSciFiMovies(?int $providerId = null, string $region = 'ID', int $page = 1)
+    {
+        $params = [
+            'with_genres' => 878,
+            'language' => 'en-US',
+            'sort_by' => 'popularity.desc',
+            'page' => $page,
+        ];
+
+        if ($providerId !== null) {
+            $params['with_watch_providers'] = $providerId;
+            $params['watch_region'] = $region;
+            $params['with_watch_monetization_types'] = 'flatrate';
+        }
+
+        $queryString = http_build_query($params);
+
+        return $this->fetch("/discover/movie?{$queryString}");
+    }
+
+    public function getDramaMovies(?int $providerId = null, string $region = 'ID', int $page = 1)
+    {
+        $params = [
+            'with_genres' => 18,
+            'language' => 'en-US',
+            'sort_by' => 'popularity.desc',
+            'page' => $page,
+        ];
+
+        if ($providerId !== null) {
+            $params['with_watch_providers'] = $providerId;
+            $params['watch_region'] = $region;
+            $params['with_watch_monetization_types'] = 'flatrate';
+        }
+
+        $queryString = http_build_query($params);
+
+        return $this->fetch("/discover/movie?{$queryString}");
+    }
+
+    public function getCrimeMovies(?int $providerId = null, string $region = 'ID', int $page = 1)
+    {
+        $params = [
+            'with_genres' => 80,
+            'language' => 'en-US',
+            'sort_by' => 'popularity.desc',
+            'page' => $page,
+        ];
+
+        if ($providerId !== null) {
+            $params['with_watch_providers'] = $providerId;
+            $params['watch_region'] = $region;
+            $params['with_watch_monetization_types'] = 'flatrate';
+        }
+
+        $queryString = http_build_query($params);
+
+        return $this->fetch("/discover/movie?{$queryString}");
+    }
+
+    public function getFamilyMovies(?int $providerId = null, string $region = 'ID', int $page = 1)
+    {
+        $params = [
+            'with_genres' => 10751,
+            'language' => 'en-US',
+            'sort_by' => 'popularity.desc',
+            'page' => $page,
+        ];
+
+        if ($providerId !== null) {
+            $params['with_watch_providers'] = $providerId;
+            $params['watch_region'] = $region;
+            $params['with_watch_monetization_types'] = 'flatrate';
+        }
+
+        $queryString = http_build_query($params);
+
+        return $this->fetch("/discover/movie?{$queryString}");
+    }
+
+    public function getFantasyMovies(?int $providerId = null, string $region = 'ID', int $page = 1)
+    {
+        $params = [
+            'with_genres' => 14,
+            'language' => 'en-US',
+            'sort_by' => 'popularity.desc',
+            'page' => $page,
+        ];
+
+        if ($providerId !== null) {
+            $params['with_watch_providers'] = $providerId;
+            $params['watch_region'] = $region;
+            $params['with_watch_monetization_types'] = 'flatrate';
+        }
+
+        $queryString = http_build_query($params);
+
+        return $this->fetch("/discover/movie?{$queryString}");
+    }
+
+    public function getMysteryMovies(?int $providerId = null, string $region = 'ID', int $page = 1)
+    {
+        $params = [
+            'with_genres' => 9648,
+            'language' => 'en-US',
+            'sort_by' => 'popularity.desc',
+            'page' => $page,
+        ];
+
+        if ($providerId !== null) {
+            $params['with_watch_providers'] = $providerId;
+            $params['watch_region'] = $region;
+            $params['with_watch_monetization_types'] = 'flatrate';
+        }
+
+        $queryString = http_build_query($params);
+
+        return $this->fetch("/discover/movie?{$queryString}");
+    }
+
+    public function getWarMovies(?int $providerId = null, string $region = 'ID', int $page = 1)
+    {
+        $params = [
+            'with_genres' => 10752,
+            'language' => 'en-US',
+            'sort_by' => 'popularity.desc',
+            'page' => $page,
+        ];
+
+        if ($providerId !== null) {
+            $params['with_watch_providers'] = $providerId;
+            $params['watch_region'] = $region;
+            $params['with_watch_monetization_types'] = 'flatrate';
+        }
+
+        $queryString = http_build_query($params);
+
+        return $this->fetch("/discover/movie?{$queryString}");
+    }
+
+    public function getMusicMovies(?int $providerId = null, string $region = 'ID', int $page = 1)
+    {
+        $params = [
+            'with_genres' => 10402,
+            'language' => 'en-US',
+            'sort_by' => 'popularity.desc',
+            'page' => $page,
+        ];
+
+        if ($providerId !== null) {
+            $params['with_watch_providers'] = $providerId;
+            $params['watch_region'] = $region;
+            $params['with_watch_monetization_types'] = 'flatrate';
+        }
+
+        $queryString = http_build_query($params);
+
+        return $this->fetch("/discover/movie?{$queryString}");
+    }
+
+    public function getKoreanContent(?int $providerId = null, string $region = 'ID', int $page = 1)
+    {
+        $params = [
+            'language' => 'en-US',
+            'sort_by' => 'popularity.desc',
+            'with_original_language' => 'ko',
+            'page' => $page,
+        ];
+
+        if ($providerId !== null) {
+            $params['with_watch_providers'] = $providerId;
+            $params['watch_region'] = $region;
+            $params['with_watch_monetization_types'] = 'flatrate';
+        }
+
+        $queryString = http_build_query($params);
+
+        return $this->fetch("/discover/tv?{$queryString}");
+    }
+
+    public function getUpcoming(int $page = 1)
+    {
+        $params = [
+            'language' => 'en-US',
+            'page' => $page,
+        ];
+
+        $queryString = http_build_query($params);
+
+        return $this->fetch("/movie/upcoming?{$queryString}");
+    }
+
+    public function getNowPlaying(int $page = 1)
+    {
+        $params = [
+            'language' => 'en-US',
+            'page' => $page,
+        ];
+
+        $queryString = http_build_query($params);
+
+        return $this->fetch("/movie/now_playing?{$queryString}");
+    }
+
+    public function getPopularTv(int $page = 1)
+    {
+        $params = [
+            'language' => 'en-US',
+            'page' => $page,
+        ];
+
+        $queryString = http_build_query($params);
+
+        return $this->fetch("/tv/popular?{$queryString}");
     }
 
     public function getWatchProviders(string $type = 'movie', string $region = 'ID')
@@ -168,7 +508,7 @@ class TmdbService
         $data = $this->getWatchProviders($type, $region);
         $results = $data['results'] ?? [];
 
-        if (! is_array($results)) {
+        if (!is_array($results)) {
             return null;
         }
 
@@ -178,7 +518,7 @@ class TmdbService
             $providerName = $provider['provider_name'] ?? null;
             $providerId = $provider['provider_id'] ?? null;
 
-            if (! is_string($providerName) || $providerId === null) {
+            if (!is_string($providerName) || $providerId === null) {
                 continue;
             }
 
@@ -190,12 +530,13 @@ class TmdbService
         return null;
     }
 
-    public function searchMulti($query)
+    public function searchMulti($query, int $page = 1)
     {
         $queryString = http_build_query([
             'query' => $query,
             'include_adult' => 'false',
             'language' => 'en-US',
+            'page' => $page,
         ]);
 
         return $this->fetch("/search/multi?{$queryString}");
@@ -245,7 +586,7 @@ class TmdbService
         $cacheKey = "tmdb_request_{$endpoint}";
         $cached = Cache::get($cacheKey);
         if ($cached) {
-            return $cached;
+            return $this->injectMediaType($cached, $endpoint);
         }
 
         $response = $this->token
@@ -256,10 +597,39 @@ class TmdbService
             $json = $response->json();
             Cache::put($cacheKey, $json, 3600);
 
-            return $json;
+            return $this->injectMediaType($json, $endpoint);
         }
 
         return $this->getMockData($endpoint);
+    }
+
+    /**
+     * Inject media_type into results based on endpoint.
+     * TMDB doesn't always include media_type for /discover/tv, /trending/tv, etc.
+     */
+    protected function injectMediaType(array $data, string $endpoint): array
+    {
+        // Determine media type from endpoint
+        $mediaType = null;
+
+        if (str_contains($endpoint, '/tv/') || str_contains($endpoint, '/discover/tv') || str_contains($endpoint, '/trending/tv')) {
+            $mediaType = 'tv';
+        } elseif (str_contains($endpoint, '/movie/') || str_contains($endpoint, '/discover/movie') || str_contains($endpoint, '/trending/movie')) {
+            $mediaType = 'movie';
+        }
+
+        // For /trending/all, media_type is already included by TMDB
+        // For /search/multi, media_type is already included by TMDB
+
+        if ($mediaType && isset($data['results']) && is_array($data['results'])) {
+            foreach ($data['results'] as &$item) {
+                if (!isset($item['media_type'])) {
+                    $item['media_type'] = $mediaType;
+                }
+            }
+        }
+
+        return $data;
     }
 
     protected function getMockData($endpoint)
@@ -281,16 +651,17 @@ class TmdbService
         }
 
         $mockMovies = [];
-        for ($i = 1; $i <= 10; $i++) {
+        for ($i = 1; $i <= 20; $i++) {
             $mockMovies[] = [
                 'id' => $i,
                 'title' => "Mock Movie Title {$i}",
                 'original_name' => "Mock Series Title {$i}",
                 'media_type' => 'movie',
-                'backdrop_path' => null, // Frontend should handle null or show placeholder
+                'backdrop_path' => null,
                 'poster_path' => null,
                 'overview' => "This is a mock description for movie {$i}. Please add a valid TMDB API Key to your .env file to see real data.",
                 'vote_average' => rand(50, 100) / 10,
+                'release_date' => '2024-01-01',
             ];
         }
 

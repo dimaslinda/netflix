@@ -9,6 +9,9 @@ export interface Movie {
     poster_path: string | null;
     vote_average: number;
     genre_ids?: number[];
+    release_date?: string;
+    first_air_date?: string;
+    adult?: boolean;
 }
 
 export interface TmdbResponse {
@@ -45,6 +48,13 @@ export interface TmdbGenre {
     name: string;
 }
 
+export interface TmdbProductionCompany {
+    id: number;
+    name: string;
+    logo_path: string | null;
+    origin_country: string;
+}
+
 export interface TmdbSeasonSummary {
     id: number;
     season_number: number;
@@ -59,12 +69,17 @@ export interface TmdbEpisode {
     episode_number: number;
     season_number: number;
     still_path: string | null;
+    runtime?: number;
+    air_date?: string;
 }
 
 export interface TmdbSeasonDetails {
     id: number;
     season_number: number;
     episodes: TmdbEpisode[];
+    name?: string;
+    overview?: string;
+    poster_path?: string | null;
 }
 
 export interface TmdbDetails {
@@ -81,4 +96,10 @@ export interface TmdbDetails {
     runtime?: number;
     genres?: TmdbGenre[];
     seasons?: TmdbSeasonSummary[];
+    number_of_seasons?: number;
+    number_of_episodes?: number;
+    status?: string;
+    tagline?: string;
+    production_companies?: TmdbProductionCompany[];
+    adult?: boolean;
 }

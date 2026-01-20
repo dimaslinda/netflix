@@ -1,49 +1,34 @@
-import { useCallback, useRef, useState } from 'react';
+import { ChevronDown, Download, Play, Plus } from 'lucide-react';
+import { useRef, useState } from 'react';
 
 import { Movie } from '@/types/tmdb';
 
 interface MovieCardProps {
     movie: Movie;
     onSelect?: (movie: Movie) => void;
-    size?: 'default' | 'large';
-    rank?: number;
+    size?: 'default' | 'large' | 'poster';
     isSearchCard?: boolean;
+    showTitleBelow?: boolean;
 }
 
 export default function MovieCard({
     movie,
     onSelect,
     size = 'default',
-    rank,
     isSearchCard = false,
+    showTitleBelow = false,
 }: MovieCardProps) {
     const [isHovered, setIsHovered] = useState(false);
-    const [trailerUrl, setTrailerUrl] = useState<string | null>(null);
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const mediaType = movie.media_type || 'movie';
 
-    const fetchTrailer = useCallback(async () => {
-        if (trailerUrl) return;
-        try {
-            const res = await fetch(
-                `/api/tmdb/${mediaType}/${movie.id}/videos`,
-            );
-            const data = await res.json();
-            if (data?.best?.embed_url) {
-                setTrailerUrl(data.best.embed_url);
-            }
-        } catch (error) {
-            console.error('Failed to fetch trailer:', error);
-        }
-    }, [mediaType, movie.id, trailerUrl]);
-
     const handleMouseEnter = () => {
-        if (isSearchCard) return;
+        if (isSearchCard || showTitleBelow) return;
+
         timerRef.current = setTimeout(() => {
             setIsHovered(true);
-            void fetchTrailer();
-        }, 800);
+        }, 300);
     };
 
     const handleMouseLeave = () => {
@@ -54,62 +39,174 @@ export default function MovieCard({
         setIsHovered(false);
     };
 
-    const imageUrl = movie.backdrop_path
-        ? `https://image.tmdb.org/t/p/w780${movie.backdrop_path}`
-        : movie.poster_path
-          ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-          : 'https://placehold.co/780x439/1a1a1a/ffffff?text=No+Image';
+    const imageUrl =
+        size === 'poster'
+            ? movie.poster_path
+                ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+                : 'https://placehold.co/500x750/1a1a1a/ffffff?text=No+Image'
+            : movie.backdrop_path
+                ? `https://image.tmdb.org/t/p/w780${movie.backdrop_path}`
+                : movie.poster_path
+                    ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+                    : 'https://placehold.co/780x439/1a1a1a/ffffff?text=No+Image';
 
     const widthClass = isSearchCard
         ? 'w-full'
-        : size === 'large'
-          ? 'w-[220px] sm:w-[260px] md:w-[320px]'
-          : 'w-[180px] sm:w-[220px] md:w-[260px]';
-
-    const baseClasses =
-        'relative flex-none cursor-pointer overflow-hidden rounded-md text-left transition-all duration-300';
-    const hoverClasses = isSearchCard ? '' : ' hover:z-30 hover:scale-110';
+        : size === 'poster'
+            ? 'w-[130px] sm:w-[150px] md:w-[180px]'
+            : size === 'large'
+                ? 'w-[220px] sm:w-[260px] md:w-[320px]'
+                : 'w-[160px] sm:w-[200px] md:w-[240px]';
 
     const title = movie.title || movie.name;
-    const shouldShowTitleOverlay = isSearchCard || isHovered;
-    const showTrailer = !isSearchCard && isHovered && !!trailerUrl;
 
+    const matchPercent = movie.vote_average
+        ? Math.min(99, Math.max(50, Math.round(movie.vote_average * 10)))
+        : 85;
+
+    const year =
+        movie.release_date?.split('-')[0] ||
+        movie.first_air_date?.split('-')[0] ||
+        '';
+
+    const isNew = movie.release_date
+        ? new Date(movie.release_date) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        : false;
+
+    // Simple hover with scale - like Netflix
+    if (isSearchCard || showTitleBelow) {
+        // Simple card without hover effect
+        return (
+            <div className={`group/card relative flex-none ${widthClass}`}>
+                <div
+                    className="relative cursor-pointer overflow-hidden rounded-md transition-transform duration-300 hover:scale-105"
+                    onClick={() => onSelect?.(movie)}
+                >
+                    <div className="absolute top-1 left-1 z-10">
+                        <span className="text-xs font-bold text-red-600">N</span>
+                    </div>
+                    <img
+                        src={imageUrl}
+                        alt={title}
+                        className={`w-full object-cover ${size === 'poster' ? 'aspect-[2/3]' : 'aspect-video'}`}
+                        loading="lazy"
+                    />
+                    {isNew && (
+                        <div className="absolute bottom-2 left-2 z-10">
+                            <span className="rounded bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                                New Episode
+                            </span>
+                        </div>
+                    )}
+                </div>
+                {showTitleBelow && (
+                    <div className="mt-2 px-1 text-xs font-semibold text-white md:text-sm">
+                        <div className="line-clamp-1">{title}</div>
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    // Card with Netflix-style hover
     return (
         <div
-            className={`${baseClasses} ${widthClass}${hoverClasses}`}
+            className={`group/card relative flex-none ${widthClass}`}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
-            onClick={() => onSelect?.(movie)}
+            style={{ zIndex: isHovered ? 50 : 1 }}
         >
-            {typeof rank === 'number' ? (
-                <div className="absolute top-1 left-1 z-30 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-xs font-bold text-white md:h-8 md:w-8 md:text-sm">
-                    {rank}
-                </div>
-            ) : null}
-            {showTrailer ? (
-                <div className="relative aspect-video w-full bg-black">
-                    <iframe
-                        src={trailerUrl}
-                        className="h-full w-full"
-                        title={title}
-                        allow="autoplay; encrypted-media"
-                    />
-                    <div className="absolute inset-0 z-10 bg-transparent" />
-                </div>
-            ) : (
-                <img
-                    src={imageUrl}
-                    alt={title}
-                    className="aspect-video h-auto w-full object-cover"
-                    loading="lazy"
-                />
-            )}
+            {/* The card that scales */}
             <div
-                className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-2 pt-8 pb-2 text-xs font-semibold text-white transition-opacity duration-300 md:text-sm ${
-                    shouldShowTitleOverlay ? 'opacity-100' : 'opacity-0'
-                }`}
+                className={`relative cursor-pointer overflow-visible rounded-md bg-[#181818] transition-all duration-300 ease-out ${isHovered ? 'scale-150 shadow-2xl shadow-black/80' : 'scale-100'
+                    }`}
+                style={{ transformOrigin: 'center center' }}
             >
-                <div className="line-clamp-2">{title}</div>
+                {/* Image */}
+                <div
+                    className="relative overflow-hidden rounded-t-md"
+                    onClick={() => onSelect?.(movie)}
+                >
+                    <div className="absolute top-1 left-1 z-10">
+                        <span className="text-xs font-bold text-red-600">N</span>
+                    </div>
+                    <img
+                        src={imageUrl}
+                        alt={title}
+                        className={`w-full object-cover ${size === 'poster' ? 'aspect-[2/3]' : 'aspect-video'}`}
+                        loading="lazy"
+                    />
+                    {/* Gradient at bottom when hovered */}
+                    {isHovered && (
+                        <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-[#181818] to-transparent" />
+                    )}
+                    {/* New badge when not hovered */}
+                    {isNew && !isHovered && (
+                        <div className="absolute bottom-2 left-2 z-10">
+                            <span className="rounded bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                                New Episode
+                            </span>
+                        </div>
+                    )}
+                </div>
+
+                {/* Hover content - appears below image */}
+                {isHovered && (
+                    <div className="rounded-b-md bg-[#181818] p-2">
+                        {/* Action Buttons */}
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-black transition hover:bg-zinc-200"
+                                    onClick={() => onSelect?.(movie)}
+                                >
+                                    <Play className="h-2.5 w-2.5" fill="black" />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-500 text-white transition hover:border-white"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <Plus className="h-2.5 w-2.5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-500 text-white transition hover:border-white"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <Download className="h-2.5 w-2.5" />
+                                </button>
+                            </div>
+                            <button
+                                type="button"
+                                className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-500 text-white transition hover:border-white"
+                                onClick={() => onSelect?.(movie)}
+                            >
+                                <ChevronDown className="h-2.5 w-2.5" />
+                            </button>
+                        </div>
+
+                        {/* Metadata */}
+                        <div className="mt-1 flex flex-wrap items-center gap-1 text-[6px]">
+                            <span className="font-semibold text-[#46d369]">
+                                {matchPercent}% Match
+                            </span>
+                            <span className="rounded border border-zinc-600 px-0.5 text-zinc-400">
+                                {movie.adult ? '18+' : '13+'}
+                            </span>
+                            {year && <span className="text-zinc-400">{year}</span>}
+                        </div>
+
+                        {/* Title */}
+                        <div className="mt-0.5 text-[7px] font-medium text-white line-clamp-1">
+                            {title}
+                        </div>
+                    </div>
+                )}
+
+                {/* Rounded bottom when not hovered */}
+                {!isHovered && <div className="rounded-b-md" />}
             </div>
         </div>
     );

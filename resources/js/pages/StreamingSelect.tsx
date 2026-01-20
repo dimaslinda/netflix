@@ -8,6 +8,7 @@ interface ProviderCard {
     logoText: string;
     logoBgClass: string;
     logoTextClass: string;
+    description?: string;
 }
 
 const PROVIDERS: ProviderCard[] = [
@@ -17,6 +18,7 @@ const PROVIDERS: ProviderCard[] = [
         logoText: 'N',
         logoBgClass: 'bg-red-600',
         logoTextClass: 'text-white',
+        description: '🎧 Multi-Audio Available',
     },
     {
         key: 'prime',
@@ -24,6 +26,7 @@ const PROVIDERS: ProviderCard[] = [
         logoText: 'prime',
         logoBgClass: 'bg-[#0f171e]',
         logoTextClass: 'text-[#00a8e1]',
+        description: '🎧 Multi-Audio Available',
     },
     {
         key: 'disney',
@@ -31,6 +34,7 @@ const PROVIDERS: ProviderCard[] = [
         logoText: 'D+',
         logoBgClass: 'bg-[#040714]',
         logoTextClass: 'text-[#1f80ff]',
+        description: '🎧 Multi-Audio Available',
     },
     {
         key: 'viu',
@@ -38,6 +42,7 @@ const PROVIDERS: ProviderCard[] = [
         logoText: 'viu',
         logoBgClass: 'bg-[#fdd835]',
         logoTextClass: 'text-[#1a1a1a]',
+        description: '🎧 Multi-Audio Available',
     },
     {
         key: 'vidio',
@@ -45,6 +50,7 @@ const PROVIDERS: ProviderCard[] = [
         logoText: 'V',
         logoBgClass: 'bg-white',
         logoTextClass: 'text-[#e50914]',
+        description: '🎧 Multi-Audio Available',
     },
     {
         key: 'hbomax',
@@ -53,6 +59,7 @@ const PROVIDERS: ProviderCard[] = [
         logoBgClass:
             'bg-gradient-to-tr from-[#0f1a2a] via-[#4b2a7a] to-[#b535f6]',
         logoTextClass: 'text-white',
+        description: '🎧 Multi-Audio Available',
     },
 ];
 
@@ -69,33 +76,43 @@ export default function StreamingSelect() {
     return (
         <div className="flex min-h-screen flex-col items-center justify-center bg-[#141414] text-white">
             <Head title="Pilih Layanan Streaming" />
-            <h1 className="mb-8 text-2xl font-bold md:text-3xl">
+            <h1 className="mb-4 text-2xl font-bold md:text-3xl">
                 Pilih Layanan Streaming Anda
             </h1>
-            <p className="mb-6 max-w-md text-center text-sm text-zinc-300">
+            <p className="mb-8 max-w-md text-center text-sm text-zinc-300">
                 Pilih platform langganan yang ingin Anda lihat katalognya.
             </p>
-            <div className="flex flex-wrap justify-center gap-6">
+
+            <div className="flex flex-wrap justify-center gap-6 max-w-4xl">
                 {PROVIDERS.map((p) => (
                     <button
                         key={p.key}
                         type="button"
                         onClick={() => handleSelect(p.key)}
-                        className="flex h-24 w-40 flex-col items-center justify-center rounded-lg bg-zinc-900 text-sm font-semibold text-white shadow-lg transition hover:scale-105 hover:bg-zinc-800"
+                        className="relative flex h-32 w-44 flex-col items-center justify-center rounded-xl bg-zinc-900 text-sm font-semibold text-white shadow-lg transition hover:scale-105 hover:bg-zinc-800 hover:ring-2 hover:ring-white/30"
                     >
                         <div
-                            className={`mb-2 flex h-10 w-20 items-center justify-center rounded ${p.logoBgClass}`}
+                            className={`mb-3 flex h-12 w-24 items-center justify-center rounded-lg ${p.logoBgClass}`}
                         >
                             <span
-                                className={`text-lg font-bold ${p.logoTextClass}`}
+                                className={`text-xl font-bold ${p.logoTextClass}`}
                             >
                                 {p.logoText}
                             </span>
                         </div>
-                        <span className="text-xs text-zinc-200">{p.label}</span>
+                        <span className="text-sm text-zinc-100">{p.label}</span>
+                        {p.description && (
+                            <span className="mt-1 text-[10px] text-green-400">
+                                {p.description}
+                            </span>
+                        )}
                     </button>
                 ))}
             </div>
+
+            <p className="mt-10 text-xs text-zinc-500">
+                💡 Multi-Audio tersedia untuk konten yang mendukung via NetMirror
+            </p>
         </div>
     );
 }

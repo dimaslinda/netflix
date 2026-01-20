@@ -19,6 +19,7 @@ class MovieController extends Controller
     {
         $providerKey = $request->query('provider');
         $region = 'ID';
+        $page = max(1, (int) $request->query('page', 1));
 
         $providerNames = [
             'netflix' => 'Netflix',
@@ -39,19 +40,38 @@ class MovieController extends Controller
 
         return Inertia::render('Home', [
             'provider' => $providerKey,
-            'trending' => $this->tmdbService->getTrending($providerId, $region),
-            'topRated' => $this->tmdbService->getTopRated($providerId, $region),
-            'actionMovies' => $this->tmdbService->getActionMovies($providerId, $region),
-            'comedyMovies' => $this->tmdbService->getComedyMovies($providerId, $region),
-            'horrorMovies' => $this->tmdbService->getHorrorMovies($providerId, $region),
-            'romanceMovies' => $this->tmdbService->getRomanceMovies($providerId, $region),
-            'documentaries' => $this->tmdbService->getDocumentaries($providerId, $region),
+            'page' => $page,
+            // Main categories
+            'trending' => $this->tmdbService->getTrending($providerId, $region, $page),
+            'topRated' => $this->tmdbService->getTopRated($providerId, $region, $page),
+            'trendingTv' => $this->tmdbService->getTrendingTv($providerId, $region, $page),
+            'topRatedTv' => $this->tmdbService->getTopRatedTv($providerId, $region, $page),
+            // Movie genres
+            'actionMovies' => $this->tmdbService->getActionMovies($providerId, $region, $page),
+            'comedyMovies' => $this->tmdbService->getComedyMovies($providerId, $region, $page),
+            'horrorMovies' => $this->tmdbService->getHorrorMovies($providerId, $region, $page),
+            'romanceMovies' => $this->tmdbService->getRomanceMovies($providerId, $region, $page),
+            'documentaries' => $this->tmdbService->getDocumentaries($providerId, $region, $page),
+            'animationMovies' => $this->tmdbService->getAnimationMovies($providerId, $region, $page),
+            'animeMovies' => $this->tmdbService->getAnimeMovies($providerId, $region, $page),
+            // New categories
+            'thrillerMovies' => $this->tmdbService->getThrillerMovies($providerId, $region, $page),
+            'sciFiMovies' => $this->tmdbService->getSciFiMovies($providerId, $region, $page),
+            'dramaMovies' => $this->tmdbService->getDramaMovies($providerId, $region, $page),
+            'crimeMovies' => $this->tmdbService->getCrimeMovies($providerId, $region, $page),
+            'familyMovies' => $this->tmdbService->getFamilyMovies($providerId, $region, $page),
+            'fantasyMovies' => $this->tmdbService->getFantasyMovies($providerId, $region, $page),
+            'mysteryMovies' => $this->tmdbService->getMysteryMovies($providerId, $region, $page),
+            'koreanContent' => $this->tmdbService->getKoreanContent($providerId, $region, $page),
+            'popularTv' => $this->tmdbService->getPopularTv($page),
+            'nowPlaying' => $this->tmdbService->getNowPlaying($page),
         ]);
     }
 
     public function search(Request $request)
     {
         $q = trim((string) $request->query('q', ''));
+        $page = max(1, (int) $request->query('page', 1));
 
         if ($q === '') {
             return response()->json([
@@ -62,12 +82,29 @@ class MovieController extends Controller
             ]);
         }
 
-        return response()->json($this->tmdbService->searchMulti($q));
+        return response()->json($this->tmdbService->searchMulti($q, $page));
+    }
+
+    public function searchPage(Request $request)
+    {
+        $q = trim((string) $request->query('q', ''));
+        $providerKey = $request->query('provider');
+
+        $results = null;
+        if ($q !== '') {
+            $results = $this->tmdbService->searchMulti($q);
+        }
+
+        return Inertia::render('Search', [
+            'provider' => $providerKey,
+            'query' => $q,
+            'results' => $results,
+        ]);
     }
 
     public function details($type, $id)
     {
-        if (! in_array($type, ['movie', 'tv'], true)) {
+        if (!in_array($type, ['movie', 'tv'], true)) {
             abort(404);
         }
 
@@ -80,7 +117,7 @@ class MovieController extends Controller
 
     public function videos($type, $id)
     {
-        if (! in_array($type, ['movie', 'tv'], true)) {
+        if (!in_array($type, ['movie', 'tv'], true)) {
             abort(404);
         }
 
@@ -101,10 +138,136 @@ class MovieController extends Controller
         return response()->json($data);
     }
 
+    public function browseCategory(Request $request, string $category)
+    {
+        $providerKey = $request->query('provider');
+        $region = 'ID';
+        $page = max(1, (int) $request->query('page', 1));
+
+        $providerNames = [
+            'netflix' => 'Netflix',
+            'prime' => 'Amazon Prime Video',
+            'disney' => 'Disney',
+            'viu' => 'Viu',
+            'vidio' => 'Vidio',
+            'hbomax' => 'HBO Max',
+        ];
+
+        $providerId = null;
+        if ($providerKey && isset($providerNames[$providerKey])) {
+            $providerId = $this->tmdbService->findProviderIdByName(
+                $providerNames[$providerKey],
+                $region
+            );
+        }
+
+        $title = 'Browse';
+        $data = null;
+
+        switch ($category) {
+            case 'trending':
+                $title = 'Trending Now';
+                $data = $this->tmdbService->getTrending($providerId, $region, $page);
+                break;
+            case 'top-rated':
+                $title = 'Top Rated';
+                $data = $this->tmdbService->getTopRated($providerId, $region, $page);
+                break;
+            case 'tv-trending':
+                $title = 'Trending TV';
+                $data = $this->tmdbService->getTrendingTv($providerId, $region, $page);
+                break;
+            case 'tv-top-rated':
+                $title = 'Top Rated TV';
+                $data = $this->tmdbService->getTopRatedTv($providerId, $region, $page);
+                break;
+            case 'action':
+                $title = 'Action Thrillers';
+                $data = $this->tmdbService->getActionMovies($providerId, $region, $page);
+                break;
+            case 'comedy':
+                $title = 'Comedies';
+                $data = $this->tmdbService->getComedyMovies($providerId, $region, $page);
+                break;
+            case 'horror':
+                $title = 'Scary Movies';
+                $data = $this->tmdbService->getHorrorMovies($providerId, $region, $page);
+                break;
+            case 'romance':
+                $title = 'Romance Movies';
+                $data = $this->tmdbService->getRomanceMovies($providerId, $region, $page);
+                break;
+            case 'documentaries':
+                $title = 'Documentaries';
+                $data = $this->tmdbService->getDocumentaries($providerId, $region, $page);
+                break;
+            case 'animation':
+                $title = 'Animation';
+                $data = $this->tmdbService->getAnimationMovies($providerId, $region, $page);
+                break;
+            case 'anime':
+                $title = 'Anime';
+                $data = $this->tmdbService->getAnimeMovies($providerId, $region, $page);
+                break;
+            case 'thriller':
+                $title = 'Thrillers';
+                $data = $this->tmdbService->getThrillerMovies($providerId, $region, $page);
+                break;
+            case 'scifi':
+                $title = 'Sci-Fi';
+                $data = $this->tmdbService->getSciFiMovies($providerId, $region, $page);
+                break;
+            case 'drama':
+                $title = 'Dramas';
+                $data = $this->tmdbService->getDramaMovies($providerId, $region, $page);
+                break;
+            case 'crime':
+                $title = 'Crime';
+                $data = $this->tmdbService->getCrimeMovies($providerId, $region, $page);
+                break;
+            case 'family':
+                $title = 'Family';
+                $data = $this->tmdbService->getFamilyMovies($providerId, $region, $page);
+                break;
+            case 'fantasy':
+                $title = 'Fantasy';
+                $data = $this->tmdbService->getFantasyMovies($providerId, $region, $page);
+                break;
+            case 'mystery':
+                $title = 'Mystery';
+                $data = $this->tmdbService->getMysteryMovies($providerId, $region, $page);
+                break;
+            case 'korean':
+                $title = 'Korean Dramas';
+                $data = $this->tmdbService->getKoreanContent($providerId, $region, $page);
+                break;
+            case 'popular-tv':
+                $title = 'Popular TV Shows';
+                $data = $this->tmdbService->getPopularTv($page);
+                break;
+            case 'now-playing':
+                $title = 'Now Playing in Theaters';
+                $data = $this->tmdbService->getNowPlaying($page);
+                break;
+        }
+
+        if (!$data) {
+            abort(404);
+        }
+
+        return Inertia::render('BrowseCategory', [
+            'provider' => $providerKey,
+            'category' => $category,
+            'title' => $title,
+            'page' => $page,
+            'results' => $data,
+        ]);
+    }
+
     protected function pickBestVideo($data)
     {
         $results = $data['results'] ?? [];
-        if (! is_array($results) || count($results) === 0) {
+        if (!is_array($results) || count($results) === 0) {
             return null;
         }
 
@@ -112,7 +275,7 @@ class MovieController extends Controller
             $site = $video['site'] ?? null;
             $type = $video['type'] ?? null;
 
-            return $site === 'YouTube' && $type === 'Trailer' && ! empty($video['key']);
+            return $site === 'YouTube' && $type === 'Trailer' && !empty($video['key']);
         }));
 
         if (count($youtubeTrailers) > 0) {
@@ -122,7 +285,7 @@ class MovieController extends Controller
         $youtubeAny = array_values(array_filter($results, function ($video) {
             $site = $video['site'] ?? null;
 
-            return $site === 'YouTube' && ! empty($video['key']);
+            return $site === 'YouTube' && !empty($video['key']);
         }));
 
         if (count($youtubeAny) > 0) {
@@ -139,7 +302,7 @@ class MovieController extends Controller
 
         $embedUrl = null;
         if ($site === 'YouTube' && $key) {
-            $embedUrl = "https://www.youtube.com/embed/{$key}?autoplay=1&mute=1";
+            $embedUrl = "https://www.youtube.com/embed/{$key}?autoplay=1&mute=1&controls=0&modestbranding=1&showinfo=0&rel=0";
         }
 
         return [
