@@ -19,6 +19,8 @@ interface WatchProps {
     season?: string;
     episode?: string;
     title?: string;
+    poster_path?: string;
+    backdrop_path?: string;
 }
 
 interface ServerProvider {
@@ -112,6 +114,8 @@ export default function Watch({
     season: initialSeason = '1',
     episode: initialEpisode = '1',
     title: propTitle,
+    poster_path: propPoster,
+    backdrop_path: propBackdrop,
 }: WatchProps) {
     const [currentSeason, setCurrentSeason] = useState(initialSeason);
     const [currentEpisode, setCurrentEpisode] = useState(initialEpisode);
@@ -201,14 +205,20 @@ export default function Watch({
 
     // Rekam progres menonton ke local storage
     useEffect(() => {
-        if (!id || !details) return;
+        if (!id) return;
+
+        const resolvedTitle = details?.title ?? details?.name ?? propTitle;
+        if (!resolvedTitle || resolvedTitle === 'Untitled') return;
+
+        const resolvedPoster = details?.poster_path ?? propPoster ?? null;
+        const resolvedBackdrop = details?.backdrop_path ?? propBackdrop ?? null;
 
         saveContinueWatching({
             id: String(id),
             type,
-            title: details.title ?? details.name ?? propTitle ?? 'Untitled',
-            poster_path: details.poster_path,
-            backdrop_path: details.backdrop_path,
+            title: resolvedTitle,
+            poster_path: resolvedPoster,
+            backdrop_path: resolvedBackdrop,
             season: type === 'tv' ? currentSeason : undefined,
             episode: type === 'tv' ? currentEpisode : undefined,
             episodeTitle: currentEpisodeData?.name,
@@ -222,6 +232,8 @@ export default function Watch({
         currentEpisode,
         currentEpisodeData,
         propTitle,
+        propPoster,
+        propBackdrop,
     ]);
 
     // Timer auto-hide untuk header dan kontrol saat kursor tidak bergerak

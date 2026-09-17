@@ -61,9 +61,12 @@ Route::get('tonton', function () {
 Route::get('watch/{type}/{id}', function ($type, $id) {
     return Inertia::render('Watch', [
         'type' => $type,
-        'id' => $id,
+        'id' => (string) $id,
         'season' => request()->query('season', '1'),
         'episode' => request()->query('episode', '1'),
+        'title' => request()->query('title'),
+        'poster_path' => request()->query('poster'),
+        'backdrop_path' => request()->query('backdrop'),
         'provider' => request()->query('provider'),
         'reference' => request()->query('reference'),
     ]);

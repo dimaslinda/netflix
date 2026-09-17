@@ -109,12 +109,21 @@ export default function MovieDetail({ type, id }: MovieDetailProps) {
 
     const trailerEmbed = videos?.best?.embed_url ?? null;
 
-    const play = () =>
-        router.visit(
-            type === 'tv'
-                ? `/watch/tv/${id}?season=${season}&episode=1`
-                : `/watch/movie/${id}`,
-        );
+    const play = () => {
+        const query = new URLSearchParams();
+        if (title) query.set('title', title);
+        if (details?.poster_path) query.set('poster', details.poster_path);
+        if (details?.backdrop_path) query.set('backdrop', details.backdrop_path);
+
+        if (type === 'tv') {
+            query.set('season', String(season));
+            query.set('episode', '1');
+            router.visit(`/watch/tv/${id}?${query.toString()}`);
+        } else {
+            const qs = query.toString() ? `?${query.toString()}` : '';
+            router.visit(`/watch/movie/${id}${qs}`);
+        }
+    };
 
     if (status === 'loading') {
         return (
@@ -282,11 +291,15 @@ export default function MovieDetail({ type, id }: MovieDetailProps) {
                                         <li key={episode.id}>
                                             <button
                                                 type="button"
-                                                onClick={() =>
-                                                    router.visit(
-                                                        `/watch/tv/${id}?season=${episode.season_number}&episode=${episode.episode_number}`,
-                                                    )
-                                                }
+                                                onClick={() => {
+                                                    const query = new URLSearchParams();
+                                                    if (title) query.set('title', title);
+                                                    if (details?.poster_path) query.set('poster', details.poster_path);
+                                                    if (details?.backdrop_path) query.set('backdrop', details.backdrop_path);
+                                                    query.set('season', String(episode.season_number));
+                                                    query.set('episode', String(episode.episode_number));
+                                                    router.visit(`/watch/tv/${id}?${query.toString()}`);
+                                                }}
                                                 className="cinema-focus flex w-full gap-4 rounded-[var(--cinema-radius-panel)] bg-[var(--cinema-raised)] p-3 text-left transition hover:bg-[var(--cinema-overlay)]"
                                             >
                                                 <span className="aspect-video w-32 flex-none overflow-hidden rounded bg-[var(--cinema-overlay)]">

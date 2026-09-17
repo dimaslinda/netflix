@@ -761,11 +761,16 @@ export default function Account({
 
                                                     <button
                                                         type="button"
-                                                        onClick={() =>
+                                                        onClick={() => {
+                                                            const query = new URLSearchParams();
+                                                            if (item.title) query.set('title', item.title);
+                                                            if (item.poster_path) query.set('poster', item.poster_path);
+                                                            if (item.backdrop_path) query.set('backdrop', item.backdrop_path);
+                                                            const qs = query.toString() ? `?${query.toString()}` : '';
                                                             router.visit(
-                                                                `/watch/${item.media_type}/${item.tmdb_id}`,
-                                                            )
-                                                        }
+                                                                `/watch/${item.media_type}/${item.tmdb_id}${qs}`,
+                                                            );
+                                                        }}
                                                         className="cinema-focus flex w-full items-center justify-center gap-2 rounded-md bg-[#E50914] py-2 text-xs font-bold text-white shadow hover:bg-red-700"
                                                     >
                                                         <Play className="h-3.5 w-3.5 fill-white" />
@@ -869,13 +874,21 @@ export default function Account({
                                             <div className="flex items-center gap-2">
                                                 <button
                                                     type="button"
-                                                    onClick={() =>
-                                                        router.visit(
-                                                            h.media_type === 'tv'
-                                                                ? `/watch/tv/${h.tmdb_id}?season=${h.season}&episode=${h.episode}`
-                                                                : `/watch/movie/${h.tmdb_id}`,
-                                                        )
-                                                    }
+                                                    onClick={() => {
+                                                        const query = new URLSearchParams();
+                                                        if (h.title) query.set('title', h.title);
+                                                        if (h.poster_path) query.set('poster', h.poster_path);
+                                                        if (h.backdrop_path) query.set('backdrop', h.backdrop_path);
+
+                                                        if (h.media_type === 'tv') {
+                                                            query.set('season', String(h.season ?? 1));
+                                                            query.set('episode', String(h.episode ?? 1));
+                                                            router.visit(`/watch/tv/${h.tmdb_id}?${query.toString()}`);
+                                                        } else {
+                                                            const qs = query.toString() ? `?${query.toString()}` : '';
+                                                            router.visit(`/watch/movie/${h.tmdb_id}${qs}`);
+                                                        }
+                                                    }}
                                                     className="cinema-focus flex min-h-[38px] items-center gap-1.5 rounded-lg bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20"
                                                 >
                                                     <Play className="h-3.5 w-3.5 fill-white" />

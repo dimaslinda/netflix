@@ -90,7 +90,15 @@ export default function Home(props: HomeProps) {
     }, []);
 
     const play = useCallback((movie: Movie) => {
-        router.visit(`/watch/${movie.media_type ?? 'movie'}/${movie.id}`);
+        const title = movie.title ?? movie.name ?? movie.original_name ?? '';
+        const params = new URLSearchParams();
+        if (title) params.set('title', title);
+        if (movie.poster_path) params.set('poster', movie.poster_path);
+        if (movie.backdrop_path) params.set('backdrop', movie.backdrop_path);
+        const qs = params.toString();
+        router.visit(
+            `/watch/${movie.media_type ?? 'movie'}/${movie.id}${qs ? `?${qs}` : ''}`,
+        );
     }, []);
 
     const toggleMyList = useCallback((movie: Movie) => {

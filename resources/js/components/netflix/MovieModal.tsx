@@ -161,11 +161,22 @@ function MovieModalPanel({
     const numberOfSeasons = details?.number_of_seasons;
 
     const handlePlay = () => {
-        const url =
-            mediaType === 'tv'
-                ? `/watch/tv/${movie.id}?season=${season}&episode=1`
-                : `/watch/movie/${movie.id}`;
-        window.location.href = url;
+        const query = new URLSearchParams();
+        const finalTitle = title !== 'Untitled' ? title : '';
+        if (finalTitle) query.set('title', finalTitle);
+        const poster = movie.poster_path || details?.poster_path;
+        if (poster) query.set('poster', poster);
+        const backdrop = movie.backdrop_path || details?.backdrop_path;
+        if (backdrop) query.set('backdrop', backdrop);
+
+        if (mediaType === 'tv') {
+            query.set('season', String(season));
+            query.set('episode', '1');
+            window.location.href = `/watch/tv/${movie.id}?${query.toString()}`;
+        } else {
+            const qs = query.toString() ? `?${query.toString()}` : '';
+            window.location.href = `/watch/movie/${movie.id}${qs}`;
+        }
     };
 
     const handleMoreInfoPage = () => {
@@ -470,7 +481,16 @@ function MovieModalPanel({
                                         type="button"
                                         className="group flex w-full items-start gap-4 rounded-lg p-3 text-left transition hover:bg-zinc-800"
                                         onClick={() => {
-                                            window.location.href = `/watch/tv/${id}?season=${ep.season_number}&episode=${ep.episode_number}`;
+                                            const query = new URLSearchParams();
+                                            const finalTitle = title !== 'Untitled' ? title : '';
+                                            if (finalTitle) query.set('title', finalTitle);
+                                            const poster = movie.poster_path || details?.poster_path;
+                                            if (poster) query.set('poster', poster);
+                                            const backdrop = movie.backdrop_path || details?.backdrop_path;
+                                            if (backdrop) query.set('backdrop', backdrop);
+                                            query.set('season', String(ep.season_number));
+                                            query.set('episode', String(ep.episode_number));
+                                            window.location.href = `/watch/tv/${id}?${query.toString()}`;
                                         }}
                                     >
                                         {/* Episode Number */}

@@ -26,7 +26,22 @@ export function getContinueWatchingList(): ContinueWatchingItem[] {
         if (!raw) return [];
         const parsed: ContinueWatchingItem[] = JSON.parse(raw);
         if (!Array.isArray(parsed)) return [];
-        return parsed.sort((a, b) => b.updatedAt - a.updatedAt);
+
+        // Prune entries without valid title or marked as 'Untitled'
+        const valid = parsed.filter(
+            (item) =>
+                Boolean(item) &&
+                Boolean(item.id) &&
+                Boolean(item.title) &&
+                item.title.trim() !== '' &&
+                item.title !== 'Untitled',
+        );
+
+        if (valid.length !== parsed.length) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(valid));
+        }
+
+        return valid.sort((a, b) => b.updatedAt - a.updatedAt);
     } catch {
         return [];
     }
@@ -36,6 +51,17 @@ export function saveContinueWatching(
     item: Omit<ContinueWatchingItem, 'updatedAt'>,
 ): void {
     if (typeof window === 'undefined') return;
+
+    // Jangan simpan rekaman tanpa judul valid atau berjudul 'Untitled'
+    if (
+        !item.title ||
+        typeof item.title !== 'string' ||
+        item.title.trim() === '' ||
+        item.title === 'Untitled'
+    ) {
+        return;
+    }
+
     try {
         const current = getContinueWatchingList();
         const existingIndex = current.findIndex(
@@ -147,7 +173,16 @@ export async function syncUserWatchHistory(): Promise<void> {
         if (json.success && Array.isArray(json.data) && json.data.length > 0) {
             const mapped: ContinueWatchingItem[] = (
                 json.data as ServerHistoryRow[]
-            ).map((row) => ({
+            )
+                .filter(
+                    (row) =>
+                        Boolean(row) &&
+                        Boolean(row.tmdb_id) &&
+                        Boolean(row.title) &&
+                        row.title.trim() !== '' &&
+                        row.title !== 'Untitled',
+                )
+                .map((row) => ({
                 id: String(row.tmdb_id),
                 type: row.media_type,
                 title: row.title,

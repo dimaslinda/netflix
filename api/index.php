@@ -61,6 +61,12 @@ if (empty($_ENV['APP_KEY']) && empty(getenv('APP_KEY'))) {
     $_SERVER['APP_KEY'] = $fallbackKey;
 }
 
+// Normalisasi SCRIPT_NAME agar Symfony Request tidak memangkas prefix '/api' dari REQUEST_URI.
+// Tanpa ini, Symfony mengira '/api' adalah sub-folder aplikasi dan memangkasnya,
+// menyebabkan rute Laravel /api/* menjadi 404.
+$_SERVER['SCRIPT_NAME'] = '/index.php';
+$_SERVER['PHP_SELF'] = '/index.php';
+
 // Teruskan ke entrypoint utama Laravel dengan diagnostic fallback
 try {
     require __DIR__ . '/../public/index.php';
