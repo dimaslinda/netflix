@@ -28,7 +28,17 @@ return Application::configure(basePath: dirname(__DIR__))
             error_log('=== LARAVEL EXCEPTION: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
         });
 
-        $exceptions->render(function (\Throwable $e) {
+        $exceptions->render(function (\Throwable $e, $request) {
+            // Biarkan Laravel & Inertia menangani error validasi, otentikasi, dan HTTP status secara alami
+            if (
+                $e instanceof \Illuminate\Validation\ValidationException ||
+                $e instanceof \Illuminate\Auth\AuthenticationException ||
+                $e instanceof \Illuminate\Auth\Access\AuthorizationException ||
+                $e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+            ) {
+                return null;
+            }
+
             return response(
                 '<div style="background:#111;color:#fff;padding:32px;font-family:sans-serif;min-height:100vh;">' .
                 '<h1 style="color:#e50914;">500 | Laravel Exception Detail</h1>' .
