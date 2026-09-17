@@ -39,6 +39,16 @@ putenv('APP_PACKAGES_CACHE=/tmp/bootstrap/cache/packages.php');
 putenv('APP_ROUTES_CACHE=/tmp/bootstrap/cache/routes.php');
 putenv('APP_EVENTS_CACHE=/tmp/bootstrap/cache/events.php');
 
+// Paksa cache driver ke database agar tidak menulis ke filesystem read-only
+putenv('CACHE_STORE=database');
+$_ENV['CACHE_STORE'] = 'database';
+$_SERVER['CACHE_STORE'] = 'database';
+
+// Session juga harus cookie di serverless (tidak ada shared filesystem)
+putenv('SESSION_DRIVER=cookie');
+$_ENV['SESSION_DRIVER'] = 'cookie';
+$_SERVER['SESSION_DRIVER'] = 'cookie';
+
 // Fallback jika APP_KEY belum diset di Vercel Dashboard
 if (empty($_ENV['APP_KEY']) && empty(getenv('APP_KEY'))) {
     $fallbackKey = 'base64:' . base64_encode('12345678901234567890123456789012');
