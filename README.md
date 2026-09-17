@@ -242,9 +242,61 @@ npm run build
 # Format kode frontend
 npm run format
 
+# Linting frontend (ESLint)
+npm run lint
+
 # Linting backend dengan Laravel Pint
 composer lint
 ```
+
+---
+
+## Panduan Deployment ke Vercel (100% Gratis)
+
+Aplikasi ini sudah dilengkapi konfigurasi serverless resmi untuk Vercel:
+
+- [`vercel.json`](vercel.json): Mengatur runtime PHP `vercel-php@0.9.0`, build otomatis Vite, dan routing aset statis.
+- [`api/index.php`](api/index.php): Entrypoint serverless yang memindahkan cache dan temporary files Laravel ke direktori writable `/tmp`.
+- [`.vercelignore`](.vercelignore): Mencegah upload file yang tidak diperlukan.
+
+### Langkah 1: Buat Database PostgreSQL Gratis di Neon.tech
+
+1. Buka [https://neon.tech](https://neon.tech) dan daftar akun gratis (tanpa kartu kredit).
+2. Buat project baru (misal: `layarflix-db`).
+3. Salin **Connection String** yang diberikan. Bentuknya seperti:
+   `postgresql://neondb_owner:password@ep-xyz.us-east-2.aws.neon.tech/neondb?sslmode=require`
+
+### Langkah 2: Jalankan Migrasi Database ke Cloud
+
+Dari terminal komputer Anda, jalankan migrasi Laravel langsung ke database Neon cloud:
+
+```bash
+# PowerShell (Windows)
+$env:DB_CONNECTION="pgsql"; $env:DATABASE_URL="postgresql://neondb_owner:password@ep-xyz.us-east-2.aws.neon.tech/neondb?sslmode=require"; php artisan migrate
+
+# Bash (Linux/macOS)
+DB_CONNECTION=pgsql DATABASE_URL="postgresql://neondb_owner:password@ep-xyz.us-east-2.aws.neon.tech/neondb?sslmode=require" php artisan migrate
+```
+
+### Langkah 3: Hubungkan Repository ke Vercel
+
+1. Buka [https://vercel.com](https://vercel.com) dan masuk dengan akun GitHub Anda.
+2. Klik **Add New...** -> **Project** -> Pilih repository `layarflix` (atau `netflix`).
+3. Pada bagian **Environment Variables**, tambahkan variabel berikut:
+   - `APP_NAME` : `LayarFlix`
+   - `APP_ENV` : `production`
+   - `APP_KEY` : *(Salin nilai `APP_KEY` dari file `.env` lokal Anda)*
+   - `APP_DEBUG` : `false`
+   - `APP_URL` : `https://nama-project-anda.vercel.app`
+   - `DB_CONNECTION` : `pgsql`
+   - `DATABASE_URL` : *(Tempel connection string dari Neon di Langkah 1)*
+   - `SESSION_DRIVER` : `database`
+   - `CACHE_STORE` : `array`
+   - `TMDB_API_KEY` : *(API Key TMDB Anda)*
+   - `TMDB_ACCESS_TOKEN` : *(Access Token TMDB Anda)*
+   - `TMDB_BASE_URL` : `https://api.themoviedb.org/3`
+   - `VITE_EMBED_BASE_URL` : `https://vidlink.pro`
+4. Klik tombol **Deploy**. Vercel akan otomatis mengompilasi bundel Vite dan merilis aplikasi Anda secara online!
 
 ---
 
