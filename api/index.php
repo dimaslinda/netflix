@@ -39,12 +39,13 @@ putenv('APP_PACKAGES_CACHE=/tmp/bootstrap/cache/packages.php');
 putenv('APP_ROUTES_CACHE=/tmp/bootstrap/cache/routes.php');
 putenv('APP_EVENTS_CACHE=/tmp/bootstrap/cache/events.php');
 
-// Paksa cache driver ke database agar tidak menulis ke filesystem read-only
-putenv('CACHE_STORE=database');
-$_ENV['CACHE_STORE'] = 'database';
-$_SERVER['CACHE_STORE'] = 'database';
+// Paksa cache driver ke file (/tmp/storage/framework/cache/data)
+// Menghilangkan query SQL cache/rate limiter ke Neon DB yang memicu SQLSTATE[25P02] di PgBouncer
+putenv('CACHE_STORE=file');
+$_ENV['CACHE_STORE'] = 'file';
+$_SERVER['CACHE_STORE'] = 'file';
 
-// Session juga harus cookie di serverless (tidak ada shared filesystem)
+// Session harus cookie di serverless (tidak ada shared filesystem/state)
 putenv('SESSION_DRIVER=cookie');
 $_ENV['SESSION_DRIVER'] = 'cookie';
 $_SERVER['SESSION_DRIVER'] = 'cookie';
