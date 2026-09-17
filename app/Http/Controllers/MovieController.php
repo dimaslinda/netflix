@@ -261,6 +261,10 @@ class MovieController extends Controller
                 $targetId = $providerId ?: $this->tmdbService->findProviderIdByName('Disney', $region);
                 $data = $this->tmdbService->getTrending($targetId, $region, $page);
                 break;
+            case 'kids':
+                $title = 'Film & Acara Anak-anak';
+                $data = $this->tmdbService->getKidsContent($providerId, $region, $page);
+                break;
         }
 
         if (!$data) {

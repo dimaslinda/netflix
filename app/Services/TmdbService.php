@@ -357,6 +357,29 @@ class TmdbService
         return $this->fetch("/discover/movie?{$queryString}");
     }
 
+    public function getKidsContent(?int $providerId = null, string $region = 'ID', int $page = 1)
+    {
+        $params = [
+            'with_genres' => '10751|16',
+            'certification_country' => 'US',
+            'certification.lte' => 'PG',
+            'include_adult' => 'false',
+            'language' => 'en-US',
+            'sort_by' => 'popularity.desc',
+            'page' => $page,
+        ];
+
+        if ($providerId !== null) {
+            $params['with_watch_providers'] = $providerId;
+            $params['watch_region'] = $region;
+            $params['with_watch_monetization_types'] = 'flatrate';
+        }
+
+        $queryString = http_build_query($params);
+
+        return $this->fetch("/discover/movie?{$queryString}");
+    }
+
     public function getFantasyMovies(?int $providerId = null, string $region = 'ID', int $page = 1)
     {
         $params = [

@@ -31,6 +31,7 @@ const PRIMARY_LINKS = [
     { label: 'Disney+', href: '/browse/disney' },
     { label: 'Film', href: '/browse/trending' },
     { label: 'Serial', href: '/browse/popular-tv' },
+    { label: 'Anak-anak', href: '/browse/kids' },
     { label: 'Baru Tayang', href: '/browse/now-playing' },
     { label: 'Daftar Saya', href: '/account?tab=bookmarks' },
 ] as const;

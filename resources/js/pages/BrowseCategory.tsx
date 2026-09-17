@@ -47,11 +47,26 @@ export default function BrowseCategory({
 
             <main className="px-4 pt-24 pb-20 md:px-12 lg:px-16">
                 <header className="mb-8">
-                    <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-                        {title}
-                    </h1>
+                    {category === 'kids' ? (
+                        <div className="space-y-3">
+                            <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-500/10 px-3.5 py-1 text-xs font-bold text-amber-400">
+                                <span>🧸</span>
+                                <span>ZONA RAMAH ANAK & KELUARGA</span>
+                            </div>
+                            <h1 className="text-2xl font-black tracking-tight text-white md:text-3xl">
+                                {title}
+                            </h1>
+                            <p className="max-w-2xl text-xs leading-relaxed text-zinc-300 md:text-sm">
+                                Koleksi film kartun, animasi, dan tontonan keluarga pilihan yang aman untuk dinikmati si kecil (Rating G & PG).
+                            </p>
+                        </div>
+                    ) : (
+                        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+                            {title}
+                        </h1>
+                    )}
                     {items.length > 0 && (
-                        <p className="mt-1.5 text-[13px] text-[var(--cinema-ink-faint)]">
+                        <p className="mt-2 text-[13px] text-[var(--cinema-ink-faint)]">
                             Halaman {page} dari{' '}
                             {totalPages.toLocaleString('id-ID')}
                         </p>

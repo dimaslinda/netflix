@@ -37,4 +37,21 @@ class BrowseCategoryTest extends TestCase
         $trending = $response->original->getData()['page']['props']['trending']['results'] ?? [];
         $this->assertNotEmpty($trending, 'Trending results for Disney provider should not be empty');
     }
+
+    public function test_browse_kids_category_loads_successfully(): void
+    {
+        $response = $this->get('/browse/kids');
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->component('BrowseCategory')
+            ->where('category', 'kids')
+            ->where('title', 'Film & Acara Anak-anak')
+            ->has('results.results')
+        );
+
+        $results = $response->original->getData()['page']['props']['results']['results'] ?? [];
+        $this->assertNotEmpty($results, 'Kids category results should not be empty');
+        $this->assertGreaterThan(0, count($results));
+    }
 }

@@ -111,7 +111,8 @@ Route::get('browse/{category}', [MovieController::class, 'browseCategory'])
         'korean',
         'popular-tv',
         'now-playing',
-        'disney'
+        'disney',
+        'kids',
     ])
     ->name('browse.category');
 

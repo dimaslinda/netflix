@@ -1,5 +1,6 @@
 import '../css/app.css';
 
+import { App as CapApp } from '@capacitor/app';
 import { createInertiaApp, router } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { StrictMode } from 'react';
@@ -22,6 +23,27 @@ if (typeof window !== 'undefined') {
             sessionStorage.setItem('last_app_url', url);
         }
     });
+
+    // Penanganan gestur & tombol fisik "Back" di Android (Capacitor)
+    try {
+        CapApp.addListener('backButton', () => {
+            const currentPath = window.location.pathname;
+            if (currentPath.startsWith('/watch')) {
+                const target = sessionStorage.getItem('last_app_url') || '/';
+                router.visit(target);
+            } else if (currentPath !== '/') {
+                if (window.history.length > 1) {
+                    window.history.back();
+                } else {
+                    router.visit('/');
+                }
+            } else {
+                CapApp.exitApp();
+            }
+        }).catch(() => {});
+    } catch {
+        // Lingkungan peramban web standar tanpa native Capacitor
+    }
 }
 
 createInertiaApp({

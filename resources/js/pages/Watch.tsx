@@ -1,8 +1,11 @@
+import { App as CapApp } from '@capacitor/app';
 import { Head, router } from '@inertiajs/react';
 import {
     ArrowLeft,
     LayoutGrid,
     Loader2,
+    Maximize,
+    Minimize,
     Play,
     SkipForward,
     X,
@@ -50,7 +53,7 @@ const SERVERS: ServerProvider[] = [
                 'player=default',
                 'title=true',
                 'poster=true',
-                'autoplay=true',
+                'autoplay=false',
                 'nextbutton=true',
             ].join('&');
             return type === 'tv'
@@ -258,11 +261,101 @@ export default function Watch({
     }, [resetHideTimer, isEpisodeDrawerOpen]);
 
     // Tombol kembali langsung mengarahkan ke halaman sebelumnya di aplikasi
-    const handleBack = () => {
+    const handleBack = useCallback(() => {
         if (returnUrl && returnUrl.startsWith('/')) {
             router.visit(returnUrl);
         } else {
             router.visit('/');
+        }
+    }, [returnUrl]);
+
+    // Cegah layar mati saat video sedang diputar (Screen Wake Lock)
+    useEffect(() => {
+        let wakeLock: { release: () => Promise<void> } | null = null;
+
+        const requestWakeLock = async () => {
+            if ('wakeLock' in navigator && document.visibilityState === 'visible') {
+                try {
+                    const nav = navigator as unknown as {
+                        wakeLock: {
+                            request: (
+                                type: string,
+                            ) => Promise<{ release: () => Promise<void> }>;
+                        };
+                    };
+                    wakeLock = await nav.wakeLock.request('screen');
+                } catch {
+                    // Browser atau WebView belum mendukung WakeLock
+                }
+            }
+        };
+
+        requestWakeLock();
+
+        const handleVisibility = () => {
+            if (document.visibilityState === 'visible') {
+                requestWakeLock();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibility);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibility);
+            if (wakeLock) {
+                wakeLock.release().catch(() => {});
+            }
+        };
+    }, []);
+
+    // Tangani tombol fisik Back / gestur swipe di Android (Capacitor)
+    useEffect(() => {
+        let removeListener: (() => void) | null = null;
+        try {
+            const listenerPromise = CapApp.addListener('backButton', () => {
+                handleBack();
+            });
+            listenerPromise
+                .then((handle) => {
+                    removeListener = () => handle.remove();
+                })
+                .catch(() => {});
+        } catch {
+            // Berjalan di browser reguler tanpa runtime native Capacitor
+        }
+
+        return () => {
+            if (removeListener) {
+                removeListener();
+            }
+        };
+    }, [handleBack]);
+
+    // Pelacak & pengalih mode layar penuh
+    const [isFullscreen, setIsFullscreen] = useState(false);
+
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullscreen(Boolean(document.fullscreenElement));
+        };
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () =>
+            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
+
+    const toggleFullscreen = async () => {
+        try {
+            if (!document.fullscreenElement) {
+                if (document.documentElement.requestFullscreen) {
+                    await document.documentElement.requestFullscreen();
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    await document.exitFullscreen();
+                }
+            }
+        } catch {
+            // Fullscreen API fallback
         }
     };
 
@@ -360,7 +453,7 @@ export default function Watch({
                             <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-[#E50914] text-[9px] font-black text-white">
                                 N
                             </span>
-                            <h1 className="truncate text-xs font-bold text-white max-w-[180px] xs:max-w-[240px]">
+                            <h1 className="truncate text-xs font-bold text-white max-w-45 xs:max-w-[240px]">
                                 {title}
                             </h1>
                         </div>
@@ -373,19 +466,19 @@ export default function Watch({
                     </div>
                 </div>
 
-                {type === 'tv' && (
-                    <div className="flex shrink-0 items-center gap-1.5">
-                        {nextEpisode && (
-                            <button
-                                type="button"
-                                onClick={handleNextEpisode}
-                                aria-label="Episode Berikutnya"
-                                className="cinema-focus flex h-8 items-center gap-1 rounded-full bg-white/10 px-2.5 text-[11px] font-semibold text-white transition hover:bg-white/20 active:scale-95"
-                            >
-                                <SkipForward className="h-3.5 w-3.5" />
-                                <span className="hidden xs:inline">Lanjut</span>
-                            </button>
-                        )}
+                <div className="flex shrink-0 items-center gap-1.5">
+                    {type === 'tv' && nextEpisode && (
+                        <button
+                            type="button"
+                            onClick={handleNextEpisode}
+                            aria-label="Episode Berikutnya"
+                            className="cinema-focus flex h-8 items-center gap-1 rounded-full bg-white/10 px-2.5 text-[11px] font-semibold text-white transition hover:bg-white/20 active:scale-95"
+                        >
+                            <SkipForward className="h-3.5 w-3.5" />
+                            <span className="hidden xs:inline">Lanjut</span>
+                        </button>
+                    )}
+                    {type === 'tv' && (
                         <button
                             type="button"
                             onClick={() => {
@@ -402,8 +495,20 @@ export default function Watch({
                             <LayoutGrid className="h-3.5 w-3.5" />
                             <span>Episode</span>
                         </button>
-                    </div>
-                )}
+                    )}
+                    <button
+                        type="button"
+                        onClick={toggleFullscreen}
+                        aria-label={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
+                        className="cinema-focus flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 active:scale-95"
+                    >
+                        {isFullscreen ? (
+                            <Minimize className="h-4 w-4" />
+                        ) : (
+                            <Maximize className="h-4 w-4" />
+                        )}
+                    </button>
+                </div>
             </header>
 
             {/* HEADER MENGAMBANG KHUSUS DESKTOP (Sinematik & Otomatis Sembunyi) */}
@@ -515,6 +620,23 @@ export default function Watch({
                     allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
                     allowFullScreen
                 />
+
+                {/* Tombol Kembali Mengambang Khusus Mode Lanskap Layar Penuh di HP */}
+                <div
+                    className={cn(
+                        'pointer-events-auto fixed top-3.5 left-3.5 z-60 transition-opacity duration-300 md:hidden',
+                        showUi ? 'opacity-100' : 'opacity-0 pointer-events-none',
+                    )}
+                >
+                    <button
+                        type="button"
+                        onClick={handleBack}
+                        aria-label="Kembali"
+                        className="cinema-focus flex h-10 w-10 items-center justify-center rounded-full bg-black/80 text-white border border-white/20 shadow-xl backdrop-blur-md transition hover:bg-black active:scale-95"
+                    >
+                        <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+                    </button>
+                </div>
             </div>
 
             {/* AREA KONTEN KHUSUS MOBILE DI BAWAH PEMUTAR (Mode Potret di HP) */}
