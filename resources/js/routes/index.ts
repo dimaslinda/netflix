@@ -290,7 +290,7 @@ home.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     home.form = homeForm
 /**
 * @see \App\Http\Controllers\MovieController::search
- * @see app/Http/Controllers/MovieController.php:82
+ * @see app/Http/Controllers/MovieController.php:89
  * @route '/search'
  */
 export const search = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -305,7 +305,7 @@ search.definition = {
 
 /**
 * @see \App\Http\Controllers\MovieController::search
- * @see app/Http/Controllers/MovieController.php:82
+ * @see app/Http/Controllers/MovieController.php:89
  * @route '/search'
  */
 search.url = (options?: RouteQueryOptions) => {
@@ -314,7 +314,7 @@ search.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\MovieController::search
- * @see app/Http/Controllers/MovieController.php:82
+ * @see app/Http/Controllers/MovieController.php:89
  * @route '/search'
  */
 search.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -323,7 +323,7 @@ search.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\MovieController::search
- * @see app/Http/Controllers/MovieController.php:82
+ * @see app/Http/Controllers/MovieController.php:89
  * @route '/search'
  */
 search.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -333,7 +333,7 @@ search.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\MovieController::search
- * @see app/Http/Controllers/MovieController.php:82
+ * @see app/Http/Controllers/MovieController.php:89
  * @route '/search'
  */
     const searchForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -343,7 +343,7 @@ search.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\MovieController::search
- * @see app/Http/Controllers/MovieController.php:82
+ * @see app/Http/Controllers/MovieController.php:89
  * @route '/search'
  */
         searchForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -352,7 +352,7 @@ search.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\MovieController::search
- * @see app/Http/Controllers/MovieController.php:82
+ * @see app/Http/Controllers/MovieController.php:89
  * @route '/search'
  */
         searchForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

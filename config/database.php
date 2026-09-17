@@ -94,9 +94,12 @@ return [
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => 'public',
-            'sslmode' => env('DB_SSLMODE', 'prefer'),
+            'search_path' => null, // Neon default sudah 'public', hindari SET search_path saat cold start
+            'sslmode' => env('DB_SSLMODE', 'require'),
             'endpoint' => env('DB_ENDPOINT'),
+            'options' => [
+                \PDO::ATTR_EMULATE_PREPARES => true, // Cegah multi-statement transaction issues
+            ],
         ],
 
         'sqlsrv' => [
