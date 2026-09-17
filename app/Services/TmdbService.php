@@ -627,7 +627,119 @@ class TmdbService
     public function getExternalIds($type, $id)
     {
         $queryString = http_build_query(['language' => 'en-US']);
+
         return $this->fetch("/{$type}/{$id}/external_ids?{$queryString}");
+    }
+    /**
+     * Ambil seluruh katalog beranda (22 kategori) secara paralel menggunakan Http::pool.
+     * Mengubah eksekusi beruntun (4-6 detik) menjadi eksekusi bersamaan (< 1 detik).
+     *
+     * @return array<string, mixed>
+     */
+    public function getHomeCatalog(?int $providerId = null, string $region = 'ID', int $page = 1): array
+    {
+        $providerParams = $providerId ? [
+            'with_watch_providers' => $providerId,
+            'watch_region' => $region,
+            'with_watch_monetization_types' => 'flatrate',
+        ] : [];
+
+        $endpoints = [
+            'disneyCollection' => '/discover/movie?' . http_build_query([
+                'language' => 'en-US',
+                'sort_by' => 'popularity.desc',
+                'with_watch_providers' => 390,
+                'watch_region' => $region,
+                'with_watch_monetization_types' => 'flatrate',
+                'page' => 1,
+            ]),
+            'trending' => $providerId === null
+                ? "/trending/all/week?language=en-US&page={$page}"
+                : '/discover/movie?' . http_build_query(array_merge(['language' => 'en-US', 'sort_by' => 'popularity.desc', 'page' => $page], $providerParams)),
+            'topRated' => '/discover/movie?' . http_build_query(array_merge(['language' => 'en-US', 'sort_by' => 'vote_average.desc', 'vote_count.gte' => 500, 'page' => $page], $providerParams)),
+            'trendingTv' => $providerId === null
+                ? "/trending/tv/week?language=en-US&page={$page}"
+                : '/discover/tv?' . http_build_query(array_merge(['language' => 'en-US', 'sort_by' => 'popularity.desc', 'page' => $page], $providerParams)),
+            'topRatedTv' => '/discover/tv?' . http_build_query(array_merge(['language' => 'en-US', 'sort_by' => 'vote_average.desc', 'vote_count.gte' => 200, 'page' => $page], $providerParams)),
+            'actionMovies' => '/discover/movie?' . http_build_query(array_merge(['with_genres' => 28, 'language' => 'en-US', 'sort_by' => 'popularity.desc', 'page' => $page], $providerParams)),
+            'comedyMovies' => '/discover/movie?' . http_build_query(array_merge(['with_genres' => 35, 'language' => 'en-US', 'sort_by' => 'popularity.desc', 'page' => $page], $providerParams)),
+            'horrorMovies' => '/discover/movie?' . http_build_query(array_merge(['with_genres' => 27, 'language' => 'en-US', 'sort_by' => 'popularity.desc', 'page' => $page], $providerParams)),
+            'romanceMovies' => '/discover/movie?' . http_build_query(array_merge(['with_genres' => 10749, 'language' => 'en-US', 'sort_by' => 'popularity.desc', 'page' => $page], $providerParams)),
+            'documentaries' => '/discover/movie?' . http_build_query(array_merge(['with_genres' => 99, 'language' => 'en-US', 'sort_by' => 'popularity.desc', 'page' => $page], $providerParams)),
+            'animationMovies' => '/discover/movie?' . http_build_query(array_merge(['with_genres' => 16, 'language' => 'en-US', 'sort_by' => 'popularity.desc', 'page' => $page], $providerParams)),
+            'animeMovies' => '/discover/movie?' . http_build_query(array_merge(['with_genres' => 16, 'with_original_language' => 'ja', 'language' => 'en-US', 'sort_by' => 'popularity.desc', 'page' => $page], $providerParams)),
+            'thrillerMovies' => '/discover/movie?' . http_build_query(array_merge(['with_genres' => 53, 'language' => 'en-US', 'sort_by' => 'popularity.desc', 'page' => $page], $providerParams)),
+            'sciFiMovies' => '/discover/movie?' . http_build_query(array_merge(['with_genres' => 878, 'language' => 'en-US', 'sort_by' => 'popularity.desc', 'page' => $page], $providerParams)),
+            'dramaMovies' => '/discover/movie?' . http_build_query(array_merge(['with_genres' => 18, 'language' => 'en-US', 'sort_by' => 'popularity.desc', 'page' => $page], $providerParams)),
+            'crimeMovies' => '/discover/movie?' . http_build_query(array_merge(['with_genres' => 80, 'language' => 'en-US', 'sort_by' => 'popularity.desc', 'page' => $page], $providerParams)),
+            'familyMovies' => '/discover/movie?' . http_build_query(array_merge(['with_genres' => 10751, 'language' => 'en-US', 'sort_by' => 'popularity.desc', 'page' => $page], $providerParams)),
+            'fantasyMovies' => '/discover/movie?' . http_build_query(array_merge(['with_genres' => 14, 'language' => 'en-US', 'sort_by' => 'popularity.desc', 'page' => $page], $providerParams)),
+            'mysteryMovies' => '/discover/movie?' . http_build_query(array_merge(['with_genres' => 9648, 'language' => 'en-US', 'sort_by' => 'popularity.desc', 'page' => $page], $providerParams)),
+            'koreanContent' => '/discover/movie?' . http_build_query(array_merge(['with_original_language' => 'ko', 'language' => 'en-US', 'sort_by' => 'popularity.desc', 'page' => $page], $providerParams)),
+            'popularTv' => "/tv/popular?language=en-US&page={$page}",
+            'nowPlaying' => "/movie/now_playing?language=en-US&page={$page}",
+        ];
+
+        return $this->fetchMultiple($endpoints);
+    }
+
+    /**
+     * Eksekusi banyak endpoint TMDB secara bersamaan (parallel multi-socket).
+     *
+     * @param  array<string, string>  $endpoints
+     * @return array<string, mixed>
+     */
+    public function fetchMultiple(array $endpoints): array
+    {
+        if (empty($this->apiKey)) {
+            $mocked = [];
+            foreach ($endpoints as $key => $ep) {
+                $mocked[$key] = $this->getMockData($ep);
+            }
+            return $mocked;
+        }
+
+        $results = [];
+        $toFetch = [];
+
+        foreach ($endpoints as $key => $endpoint) {
+            $cacheKey = "tmdb_request_{$endpoint}";
+            $cached = Cache::get($cacheKey);
+            if ($cached) {
+                $results[$key] = $this->injectMediaType($cached, $endpoint);
+            } else {
+                $toFetch[$key] = $endpoint;
+            }
+        }
+
+        if (empty($toFetch)) {
+            return $results;
+        }
+
+        // Jalankan seluruh request yang belum ada di cache secara paralel
+        $responses = Http::pool(function ($pool) use ($toFetch) {
+            $poolRequests = [];
+            foreach ($toFetch as $key => $endpoint) {
+                $url = "{$this->baseUrl}{$endpoint}";
+                $poolRequests[$key] = $this->token
+                    ? $pool->as($key)->withToken($this->token)->get($url)
+                    : $pool->as($key)->get($url, ['api_key' => $this->apiKey]);
+            }
+            return $poolRequests;
+        });
+
+        foreach ($toFetch as $key => $endpoint) {
+            $response = $responses[$key] ?? null;
+            if ($response && $response instanceof \Illuminate\Http\Client\Response && $response->successful()) {
+                $json = $response->json();
+                Cache::put("tmdb_request_{$endpoint}", $json, 3600);
+                $results[$key] = $this->injectMediaType($json, $endpoint);
+            } else {
+                $results[$key] = $this->getMockData($endpoint);
+            }
+        }
+
+        return $results;
     }
 
     protected function fetch($endpoint)
