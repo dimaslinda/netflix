@@ -7,7 +7,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 
-return Application::configure(basePath: dirname(__DIR__))
+$app = Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__ . '/../routes/web.php',
         commands: __DIR__ . '/../routes/console.php',
@@ -51,7 +51,7 @@ return Application::configure(basePath: dirname(__DIR__))
         });
     })->create();
 
-$storagePath = env('APP_STORAGE', getenv('APP_STORAGE') ?: (isset($_ENV['VERCEL']) || isset($_SERVER['VERCEL']) ? '/tmp/storage' : null));
+$storagePath = env('LARAVEL_STORAGE_PATH', env('APP_STORAGE', getenv('LARAVEL_STORAGE_PATH') ?: (getenv('APP_STORAGE') ?: (isset($_ENV['VERCEL']) || isset($_SERVER['VERCEL']) ? '/tmp/storage' : null))));
 if ($storagePath) {
     $app->useStoragePath($storagePath);
 }

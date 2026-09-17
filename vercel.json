@@ -37,6 +37,7 @@
         "APP_DEBUG": "false",
         "LOG_CHANNEL": "stderr",
         "CACHE_STORE": "file",
-        "SESSION_DRIVER": "cookie"
+        "SESSION_DRIVER": "cookie",
+        "LARAVEL_STORAGE_PATH": "/tmp/storage"
     }
 }
