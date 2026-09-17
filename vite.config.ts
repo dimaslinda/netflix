@@ -17,10 +17,12 @@ export default defineConfig({
             },
         }),
         tailwindcss(),
-        wayfinder({
-            formVariants: true,
-        }),
-    ],
+        !process.env.VERCEL &&
+            !process.env.CI &&
+            wayfinder({
+                formVariants: true,
+            }),
+    ].filter(Boolean),
     server: {
         cors: true,
     },
