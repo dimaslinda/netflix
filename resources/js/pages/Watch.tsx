@@ -1,4 +1,5 @@
 import { App as CapApp } from '@capacitor/app';
+import { ScreenOrientation } from '@capacitor/screen-orientation';
 import { Head, router } from '@inertiajs/react';
 import {
     ArrowLeft,
@@ -7,6 +8,8 @@ import {
     Maximize,
     Minimize,
     Play,
+    RotateCw,
+    Server,
     SkipForward,
     X,
 } from 'lucide-react';
@@ -260,8 +263,105 @@ export default function Watch({
         };
     }, [resetHideTimer, isEpisodeDrawerOpen]);
 
+    // Deteksi & Pelacak Orientasi Layar (Potret <-> Lanskap)
+    const [isLandscape, setIsLandscape] = useState<boolean>(() => {
+        if (typeof window === 'undefined') return false;
+        return window.innerWidth > window.innerHeight;
+    });
+
+    useEffect(() => {
+        const updateOrientation = () => {
+            setIsLandscape(window.innerWidth > window.innerHeight);
+        };
+        window.addEventListener('resize', updateOrientation);
+        window.addEventListener('orientationchange', updateOrientation);
+
+        let removeListener: (() => void) | null = null;
+        try {
+            ScreenOrientation.addListener('screenOrientationChange', (res) => {
+                setIsLandscape(res.type.includes('landscape'));
+            })
+                .then((handle) => {
+                    removeListener = () => handle.remove();
+                })
+                .catch(() => {});
+        } catch {
+            // Berjalan di luar Capacitor native
+        }
+
+        return () => {
+            window.removeEventListener('resize', updateOrientation);
+            window.removeEventListener('orientationchange', updateOrientation);
+            if (removeListener) {
+                removeListener();
+            }
+            try {
+                ScreenOrientation.unlock().catch(() => {});
+            } catch {
+                // Abaikan kesalahan pembatalan kunci orientasi
+            }
+        };
+    }, []);
+
+    // Aksi Putar Layar (Screen Rotation Toggle)
+    const toggleRotation = useCallback(async () => {
+        const nextIsLandscape = !isLandscape;
+        setIsLandscape(nextIsLandscape);
+        resetHideTimer();
+
+        // 1. Coba gunakan plugin native Capacitor ScreenOrientation (Android/iOS)
+        try {
+            if (nextIsLandscape) {
+                await ScreenOrientation.lock({ orientation: 'landscape' });
+            } else {
+                await ScreenOrientation.lock({ orientation: 'portrait' });
+            }
+            return;
+        } catch {
+            // Bukan runtime native Capacitor
+        }
+
+        // 2. Fallback ke Web Screen Orientation API (standar W3C modern)
+        try {
+            const so = (
+                screen as unknown as {
+                    orientation?: {
+                        lock: (orientation: string) => Promise<void>;
+                    };
+                }
+            ).orientation;
+            if (so && typeof so.lock === 'function') {
+                await so.lock(nextIsLandscape ? 'landscape' : 'portrait');
+                return;
+            }
+        } catch {
+            // Web browser membatasi lock tanpa Fullscreen
+        }
+
+        // 3. Fallback Fullscreen API untuk browser mobile reguler
+        try {
+            if (nextIsLandscape && !document.fullscreenElement) {
+                if (document.documentElement.requestFullscreen) {
+                    await document.documentElement.requestFullscreen();
+                }
+            } else if (!nextIsLandscape && document.fullscreenElement) {
+                if (document.exitFullscreen) {
+                    await document.exitFullscreen();
+                }
+            }
+        } catch {
+            // Fullscreen API fallback
+        }
+    }, [isLandscape, resetHideTimer]);
+
     // Tombol kembali langsung mengarahkan ke halaman sebelumnya di aplikasi
     const handleBack = useCallback(() => {
+        try {
+            ScreenOrientation.unlock().catch(() => {});
+        } catch {
+            // Abaikan kesalahan unlock orientasi
+        }
+
         if (returnUrl && returnUrl.startsWith('/')) {
             router.visit(returnUrl);
         } else {
@@ -467,6 +567,18 @@ export default function Watch({
                 </div>
 
                 <div className="flex shrink-0 items-center gap-1.5">
+                    {/* Tombol Putar Layar ke Lanskap */}
+                    <button
+                        type="button"
+                        onClick={toggleRotation}
+                        aria-label="Putar Layar ke Mode Lanskap"
+                        title="Putar Layar (Lanskap)"
+                        className="cinema-focus flex h-8 items-center gap-1 rounded-full bg-white/10 px-2.5 text-[11px] font-semibold text-white transition hover:bg-white/20 active:scale-95"
+                    >
+                        <RotateCw className="h-3.5 w-3.5 text-zinc-200" />
+                        <span>Putar</span>
+                    </button>
+
                     {type === 'tv' && nextEpisode && (
                         <button
                             type="button"
@@ -511,40 +623,41 @@ export default function Watch({
                 </div>
             </header>
 
-            {/* HEADER MENGAMBANG KHUSUS DESKTOP (Sinematik & Otomatis Sembunyi) */}
+            {/* HEADER MENGAMBANG (Sinematik & Otomatis Sembunyi untuk Mode Lanskap & Desktop) */}
             <header
                 className={cn(
-                    'pointer-events-none fixed inset-x-0 top-0 z-40 hidden flex-col bg-linear-to-b from-black/95 via-black/75 to-transparent px-6 pt-4 pb-7 transition-opacity duration-300 md:flex md:px-8',
+                    'pointer-events-none fixed inset-x-0 top-0 z-45 flex-col bg-linear-to-b from-black/95 via-black/80 to-transparent px-4 pt-3 pb-6 transition-all duration-300 md:px-8',
+                    'hidden md:flex mobile-landscape-visible',
                     showUi || isEpisodeDrawerOpen
-                        ? 'opacity-100'
-                        : 'opacity-0',
+                        ? 'opacity-100 translate-y-0'
+                        : 'opacity-0 -translate-y-4 pointer-events-none',
                 )}
             >
                 {/* Baris 1: Tombol Navigasi, Judul, dan Tombol Kontrol Cepat */}
                 <div className="flex items-center justify-between gap-2">
                     {/* Sisi Kiri: Tombol Kembali & Info Judul */}
-                    <div className="flex min-w-0 items-center gap-4">
+                    <div className="flex min-w-0 items-center gap-3 md:gap-4">
                         <button
                             type="button"
                             onClick={handleBack}
                             aria-label="Kembali"
-                            className="pointer-events-auto cinema-focus flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black/70 text-white transition hover:bg-white/20 active:scale-95 border border-white/15 backdrop-blur-md"
+                            className="pointer-events-auto cinema-focus flex h-10 w-10 md:h-11 md:w-11 shrink-0 items-center justify-center rounded-full bg-black/70 text-white transition hover:bg-white/20 active:scale-95 border border-white/15 backdrop-blur-md"
                         >
-                            <ArrowLeft className="h-6 w-6" aria-hidden="true" />
+                            <ArrowLeft className="h-5 w-5 md:h-6 md:w-6" aria-hidden="true" />
                         </button>
 
                         <div className="flex min-w-0 flex-col">
                             <div className="flex items-center gap-2">
-                                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-[#E50914] text-[10px] font-black text-white">
+                                <span className="flex h-4.5 w-4.5 md:h-5 md:w-5 shrink-0 items-center justify-center rounded bg-[#E50914] text-[9px] md:text-[10px] font-black text-white">
                                     N
                                 </span>
-                                <h1 className="truncate text-base font-bold text-white drop-shadow max-w-md">
+                                <h1 className="truncate text-sm md:text-base font-bold text-white drop-shadow max-w-50 xs:max-w-xs md:max-w-md">
                                     {title}
                                 </h1>
                             </div>
 
                             {type === 'tv' && (
-                                <p className="truncate text-xs text-zinc-300 drop-shadow">
+                                <p className="truncate text-[11px] md:text-xs text-zinc-300 drop-shadow">
                                     M{currentSeason} : E{currentEpisode}
                                     {currentEpisodeData?.name ? ` - ${currentEpisodeData.name}` : ''}
                                 </p>
@@ -552,17 +665,29 @@ export default function Watch({
                         </div>
                     </div>
 
-                    {/* Sisi Kanan: Episode & Episode Berikutnya (TV) */}
-                    <div className="flex shrink-0 items-center gap-2.5">
+                    {/* Sisi Kanan: Kontrol Putar Layar, Episode & Fullscreen */}
+                    <div className="flex shrink-0 items-center gap-2">
+                        {/* Tombol Putar Layar */}
+                        <button
+                            type="button"
+                            onClick={toggleRotation}
+                            aria-label={isLandscape ? 'Kembali ke Mode Potret' : 'Putar Layar ke Mode Lanskap'}
+                            title={isLandscape ? 'Kembali ke Mode Potret' : 'Putar Layar (Lanskap)'}
+                            className="pointer-events-auto cinema-focus flex h-9 md:h-11 items-center gap-1.5 rounded-full bg-white/15 px-3 md:px-3.5 py-1.5 text-xs font-semibold text-white border border-white/20 backdrop-blur-sm transition hover:bg-white/25 active:scale-95"
+                        >
+                            <RotateCw className="h-3.5 w-3.5 md:h-4 md:w-4 shrink-0" aria-hidden="true" />
+                            <span>{isLandscape ? 'Potret' : 'Putar Layar'}</span>
+                        </button>
+
                         {type === 'tv' && nextEpisode && (
                             <button
                                 type="button"
                                 onClick={handleNextEpisode}
                                 aria-label={`Putar Episode Berikutnya: Episode ${nextEpisode.episode_number}`}
-                                className="pointer-events-auto cinema-focus flex h-11 items-center gap-1.5 rounded-full bg-white/15 px-3.5 py-1.5 text-xs font-semibold text-white border border-white/20 backdrop-blur-sm transition hover:bg-white/25 active:scale-95"
+                                className="pointer-events-auto cinema-focus flex h-9 md:h-11 items-center gap-1.5 rounded-full bg-white/15 px-3 md:px-3.5 py-1.5 text-xs font-semibold text-white border border-white/20 backdrop-blur-sm transition hover:bg-white/25 active:scale-95"
                             >
-                                <SkipForward className="h-4 w-4 shrink-0" aria-hidden="true" />
-                                <span>Berikutnya</span>
+                                <SkipForward className="h-3.5 w-3.5 md:h-4 md:w-4 shrink-0" aria-hidden="true" />
+                                <span className="hidden sm:inline">Berikutnya</span>
                             </button>
                         )}
 
@@ -571,17 +696,30 @@ export default function Watch({
                                 type="button"
                                 onClick={() => setIsEpisodeDrawerOpen(true)}
                                 aria-label="Buka Daftar Episode"
-                                className="pointer-events-auto cinema-focus flex h-11 items-center gap-1.5 rounded-full bg-black/70 px-4 py-1.5 text-xs font-semibold text-white border border-white/15 backdrop-blur-md transition hover:bg-white/20 active:scale-95"
+                                className="pointer-events-auto cinema-focus flex h-9 md:h-11 items-center gap-1.5 rounded-full bg-black/70 px-3 md:px-4 py-1.5 text-xs font-semibold text-white border border-white/15 backdrop-blur-md transition hover:bg-white/20 active:scale-95"
                             >
-                                <LayoutGrid className="h-4 w-4 shrink-0" aria-hidden="true" />
+                                <LayoutGrid className="h-3.5 w-3.5 md:h-4 md:w-4 shrink-0" aria-hidden="true" />
                                 <span>Episode</span>
                             </button>
                         )}
+
+                        <button
+                            type="button"
+                            onClick={toggleFullscreen}
+                            aria-label={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
+                            className="pointer-events-auto cinema-focus hidden sm:flex h-9 w-9 md:h-11 md:w-11 items-center justify-center rounded-full bg-black/70 text-white border border-white/15 backdrop-blur-md transition hover:bg-white/20 active:scale-95"
+                        >
+                            {isFullscreen ? (
+                                <Minimize className="h-4 w-4" />
+                            ) : (
+                                <Maximize className="h-4 w-4" />
+                            )}
+                        </button>
                     </div>
                 </div>
 
-                {/* Baris 2: Pemilihan Server Desktop */}
-                <div className="pointer-events-auto no-scrollbar mt-2.5 flex items-center gap-1.5 overflow-x-auto border-t border-white/10 pt-2">
+                {/* Baris 2: Pemilihan Server */}
+                <div className="pointer-events-auto no-scrollbar mt-2 flex items-center gap-1.5 overflow-x-auto border-t border-white/10 pt-2">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 pr-1">
                         Server:
                     </span>
@@ -591,9 +729,12 @@ export default function Watch({
                             <button
                                 key={server.id}
                                 type="button"
-                                onClick={() => setActiveServerId(server.id)}
+                                onClick={() => {
+                                    setActiveServerId(server.id);
+                                    resetHideTimer();
+                                }}
                                 className={cn(
-                                    'cinema-focus flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-bold transition active:scale-95',
+                                    'cinema-focus flex shrink-0 items-center gap-1 rounded-full px-2.5 md:px-3 py-1 text-[11px] md:text-xs font-bold transition active:scale-95',
                                     isActive
                                         ? 'bg-[#E50914] text-white shadow-md ring-2 ring-red-500/50'
                                         : 'bg-zinc-900/90 text-zinc-300 hover:bg-zinc-800 hover:text-white border border-white/10 backdrop-blur-sm',
@@ -604,7 +745,7 @@ export default function Watch({
                         );
                     })}
 
-                    <span className="text-[11px] text-zinc-400 pl-2">
+                    <span className="text-[10px] md:text-[11px] text-zinc-400 pl-2 hidden sm:inline">
                         💡 Takarir (CC) dapat diaktifkan langsung di tombol CC pemutar video
                     </span>
                 </div>
@@ -621,21 +762,60 @@ export default function Watch({
                     allowFullScreen
                 />
 
-                {/* Tombol Kembali Mengambang Khusus Mode Lanskap Layar Penuh di HP */}
+                {/* Area Sentuh Cepat Bagian Atas untuk Memunculkan Header Lengkap saat Tersembunyi */}
+                {!showUi && !isEpisodeDrawerOpen && (
+                    <div
+                        onClick={() => resetHideTimer()}
+                        onTouchStart={() => resetHideTimer()}
+                        className="pointer-events-auto fixed inset-x-0 top-0 h-16 z-35 cursor-pointer"
+                        aria-hidden="true"
+                    />
+                )}
+
+                {/* Tombol Aksi Cepat Mengambang (Selalu Muncul Elegan saat Header Tersembunyi) */}
                 <div
                     className={cn(
-                        'pointer-events-auto fixed top-3.5 left-3.5 z-60 transition-opacity duration-300 md:hidden',
-                        showUi ? 'opacity-100' : 'opacity-0 pointer-events-none',
+                        'pointer-events-auto fixed top-3.5 inset-x-3.5 z-40 flex items-center justify-between transition-all duration-300',
+                        showUi || isEpisodeDrawerOpen
+                            ? 'opacity-0 pointer-events-none -translate-y-2'
+                            : 'opacity-85 hover:opacity-100 translate-y-0',
                     )}
                 >
+                    {/* Kiri: Tombol Kembali Mengambang */}
                     <button
                         type="button"
                         onClick={handleBack}
                         aria-label="Kembali"
-                        className="cinema-focus flex h-10 w-10 items-center justify-center rounded-full bg-black/80 text-white border border-white/20 shadow-xl backdrop-blur-md transition hover:bg-black active:scale-95"
+                        title="Kembali"
+                        className="cinema-focus flex h-10 w-10 items-center justify-center rounded-full bg-black/80 text-white border border-white/20 shadow-xl backdrop-blur-md transition hover:bg-black hover:scale-105 active:scale-95"
                     >
                         <ArrowLeft className="h-5 w-5" aria-hidden="true" />
                     </button>
+
+                    {/* Kanan: Tombol Putar Layar & Tombol Menu Kontrol */}
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={toggleRotation}
+                            aria-label={isLandscape ? 'Mode Potret' : 'Putar Layar'}
+                            title={isLandscape ? 'Kembali ke Potret' : 'Putar Layar (Lanskap)'}
+                            className="cinema-focus flex h-10 items-center gap-1.5 rounded-full bg-black/80 px-3.5 text-xs font-semibold text-white border border-white/20 shadow-xl backdrop-blur-md transition hover:bg-black hover:scale-105 active:scale-95"
+                        >
+                            <RotateCw className="h-4 w-4 text-zinc-200" />
+                            <span className="text-[11px]">{isLandscape ? 'Potret' : 'Putar'}</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => resetHideTimer()}
+                            aria-label="Tampilkan Pilihan Server & Episode"
+                            title="Menu Server & Kontrol"
+                            className="cinema-focus flex h-10 items-center gap-1.5 rounded-full bg-black/80 px-3.5 text-xs font-semibold text-white border border-white/20 shadow-xl backdrop-blur-md transition hover:bg-black hover:scale-105 active:scale-95"
+                        >
+                            <Server className="h-4 w-4 text-[#E50914]" />
+                            <span className="text-[11px]">Server</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
