@@ -26,6 +26,8 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->registerStreamResolvers();
         $this->registerSubtitleTranslator();
+
+        $this->app->bind('db.connector.pgsql', fn () => new \App\Database\Connectors\NeonPostgresConnector);
     }
 
     /**
