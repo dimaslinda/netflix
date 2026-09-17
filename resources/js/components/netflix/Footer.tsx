@@ -1,59 +1,35 @@
-import { Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
+import BrandMark from './BrandMark';
 
+/**
+ * Kaki halaman.
+ *
+ * Isinya hanya pernyataan yang bisa diperiksa: sumber metadata, sumber takarir,
+ * dan sifat katalognya. Versi sebelumnya mencantumkan baris hak cipta atas nama
+ * perusahaan lain, yang bukan sekadar salah tetapi juga klaim yang tidak pernah
+ * benar.
+ *
+ * Atribusi TMDB bukan basa-basi: syarat pemakaian API mereka mewajibkan
+ * pernyataan bahwa aplikasi ini memakai data mereka dan tidak didukung mereka.
+ */
 export default function Footer() {
-    const footerLinks = [
-        ['Audio Description', 'Help Center', 'Gift Cards', 'Media Center'],
-        ['Investor Relations', 'Jobs', 'Terms of Use', 'Privacy'],
-        ['Legal Notices', 'Cookie Preferences', 'Corporate Information', 'Contact Us'],
-    ];
-
     return (
-        <footer className="mt-16 border-t border-zinc-800 bg-[#141414] px-4 pt-12 pb-8 text-zinc-400 md:px-16">
-            <div className="mx-auto max-w-6xl">
-                {/* Social Icons */}
-                <div className="mb-6 flex gap-6">
-                    <a href="#" className="transition hover:text-white">
-                        <Facebook className="h-6 w-6" />
-                    </a>
-                    <a href="#" className="transition hover:text-white">
-                        <Instagram className="h-6 w-6" />
-                    </a>
-                    <a href="#" className="transition hover:text-white">
-                        <Twitter className="h-6 w-6" />
-                    </a>
-                    <a href="#" className="transition hover:text-white">
-                        <Youtube className="h-6 w-6" />
-                    </a>
-                </div>
+        <footer className="border-t border-[var(--cinema-line)] px-4 py-12 md:px-12 lg:px-16">
+            <BrandMark />
 
-                {/* Links Grid */}
-                <div className="mb-6 grid grid-cols-2 gap-4 text-xs md:grid-cols-4">
-                    {footerLinks.map((column, colIndex) => (
-                        <div key={colIndex} className="space-y-3">
-                            {column.map((link) => (
-                                <a
-                                    key={link}
-                                    href="#"
-                                    className="block underline-offset-2 transition hover:text-white hover:underline"
-                                >
-                                    {link}
-                                </a>
-                            ))}
-                        </div>
-                    ))}
-                </div>
-
-                {/* Service Code Button */}
-                <button className="mb-6 border border-zinc-500 px-2 py-1 text-xs hover:text-white">
-                    Service Code
-                </button>
-
-                {/* Copyright */}
-                <p className="text-xs text-zinc-500">
-                    © 1997-{new Date().getFullYear()} Netflix, Inc.
+            <div className="mt-6 max-w-2xl space-y-3 text-[13px] leading-relaxed text-[var(--cinema-ink-faint)]">
+                <p>
+                    Katalog pemutaran berisi film berlisensi terbuka dan berkas
+                    milik Anda sendiri. Tidak ada judul berpelindung DRM yang
+                    diputar di sini.
                 </p>
-                <p className="mt-2 text-xs text-zinc-600">
-                    This is a Netflix clone for educational purposes only. All movie data is provided by TMDB.
+                <p>
+                    Metadata judul, poster, dan sinopsis berasal dari TMDB.
+                    Aplikasi ini memakai API TMDB tetapi tidak disokong atau
+                    disertifikasi oleh TMDB.
+                </p>
+                <p>
+                    Takarir berasal dari OpenSubtitles dan SubDL. Takarir yang
+                    ditandai terjemahan mesin diproses sendiri di peladen Anda.
                 </p>
             </div>
         </footer>

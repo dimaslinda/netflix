@@ -139,7 +139,8 @@
 
     body {
         @apply bg-[#141414] text-white;
-        font-family: 'Netflix Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-family:
+            'Netflix Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
     }
@@ -171,7 +172,9 @@
 
 /* Movie card hover animation */
 .movie-card-hover {
-    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+    transition:
+        transform 0.3s ease-in-out,
+        box-shadow 0.3s ease-in-out;
 }
 
 .movie-card-hover:hover {
@@ -181,16 +184,20 @@
 
 /* Gradient overlays */
 .gradient-overlay-bottom {
-    background: linear-gradient(to top,
-            rgba(20, 20, 20, 1) 0%,
-            rgba(20, 20, 20, 0.8) 20%,
-            rgba(20, 20, 20, 0) 100%);
+    background: linear-gradient(
+        to top,
+        rgba(20, 20, 20, 1) 0%,
+        rgba(20, 20, 20, 0.8) 20%,
+        rgba(20, 20, 20, 0) 100%
+    );
 }
 
 .gradient-overlay-left {
-    background: linear-gradient(to right,
-            rgba(20, 20, 20, 1) 0%,
-            rgba(20, 20, 20, 0) 50%);
+    background: linear-gradient(
+        to right,
+        rgba(20, 20, 20, 1) 0%,
+        rgba(20, 20, 20, 0) 50%
+    );
 }
 
 /* Netflix red */
@@ -231,7 +238,6 @@
 
 /* Pulse animation for skeleton */
 @keyframes skeleton-pulse {
-
     0%,
     100% {
         opacity: 1;
@@ -318,7 +324,6 @@
 
 /* Notification badge animation */
 @keyframes badge-pulse {
-
     0%,
     100% {
         transform: scale(1);
@@ -403,4 +408,60 @@ iframe {
 ::selection {
     background: rgba(229, 9, 20, 0.8);
     color: white;
+}
+/*
+ |-----------------------------------------------------------------------------
+ | Lapisan Sinema
+ |-----------------------------------------------------------------------------
+ |
+ | Token untuk halaman katalog dan pemutar. Terpisah dari token shadcn di atas
+ | karena bagian ini selalu gelap: poster yang jadi sumber warna, antarmuka
+ | mundur ke belakang.
+ |
+ | Aksen amber dipilih karena katalognya sinema arsip dan lisensi terbuka.
+ | Amber membaca sebagai seluloid, bukan korporat, dan kontrasnya di atas hitam
+ | jauh melewati ambang WCAG AA. Ganti satu nilai di bawah untuk mengubah
+ | seluruh aksen aplikasi.
+ */
+@layer base {
+    :root {
+        --cinema-base: #0a0a0b;
+        --cinema-raised: #141416;
+        --cinema-overlay: #1c1c1f;
+        --cinema-line: #2a2a2e;
+
+        --cinema-ink: #f4f4f5;
+        --cinema-ink-soft: #a8a8ad;
+        --cinema-ink-faint: #85858b;
+
+        --cinema-accent: #e8a33d;
+        --cinema-accent-ink: #1a1305;
+
+        /* Radius bertingkat, bukan pil untuk semuanya: kartu tetap tegas,
+           panel sedikit lunak, hanya lencana yang benar-benar bulat. */
+        --cinema-radius-card: 4px;
+        --cinema-radius-panel: 10px;
+    }
+}
+
+@utility scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+/*
+ | Cincin fokus tunggal untuk seluruh lapisan sinema. Latarnya gelap, jadi
+ | outline bawaan peramban nyaris tidak terlihat dan harus diganti, bukan
+ | dihapus.
+ */
+@layer base {
+    .cinema-focus:focus-visible {
+        outline: 2px solid var(--cinema-accent);
+        outline-offset: 3px;
+        border-radius: var(--cinema-radius-card);
+    }
 }

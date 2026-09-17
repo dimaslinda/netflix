@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Loader2, AlertCircle, ExternalLink } from 'lucide-react';
+import { AlertCircle, ExternalLink, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 interface NetMirrorPlayerProps {
     title: string;
@@ -46,11 +46,12 @@ export default function NetMirrorPlayer({
     if (error) {
         return (
             <div className="flex h-full w-full items-center justify-center bg-black text-white">
-                <div className="text-center max-w-md px-4">
-                    <AlertCircle className="mx-auto h-16 w-16 text-red-500 mb-4" />
-                    <p className="text-red-400 mb-2">⚠️ {error}</p>
-                    <p className="text-sm text-zinc-400 mb-4">
-                        The stream couldn't be loaded directly. You can try opening it in a new tab.
+                <div className="max-w-md px-4 text-center">
+                    <AlertCircle className="mx-auto mb-4 h-16 w-16 text-red-500" />
+                    <p className="mb-2 text-red-400">⚠️ {error}</p>
+                    <p className="mb-4 text-sm text-zinc-400">
+                        The stream couldn't be loaded directly. You can try
+                        opening it in a new tab.
                     </p>
                     {embedUrl && (
                         <a
@@ -72,7 +73,7 @@ export default function NetMirrorPlayer({
         return (
             <div className="flex h-full w-full items-center justify-center bg-black text-white">
                 <div className="text-center">
-                    <AlertCircle className="mx-auto h-16 w-16 text-yellow-500 mb-4" />
+                    <AlertCircle className="mx-auto mb-4 h-16 w-16 text-yellow-500" />
                     <p className="text-yellow-400">No stream URL available</p>
                 </div>
             </div>
@@ -107,12 +108,14 @@ export default function NetMirrorPlayer({
             />
 
             {/* Title overlay */}
-            <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/60 to-transparent p-4 pointer-events-none">
+            <div className="pointer-events-none absolute top-0 right-0 left-0 bg-gradient-to-b from-black/60 to-transparent p-4">
                 <div className="flex items-center gap-2">
                     <div className="flex h-6 w-10 items-center justify-center rounded bg-gradient-to-br from-purple-600 to-pink-500">
                         <span className="text-xs font-bold text-white">NM</span>
                     </div>
-                    <span className="text-sm font-medium text-white">{title}</span>
+                    <span className="text-sm font-medium text-white">
+                        {title}
+                    </span>
                     <span className="rounded bg-green-600/30 px-2 py-0.5 text-[10px] text-green-400">
                         🎧 Multi-Audio
                     </span>

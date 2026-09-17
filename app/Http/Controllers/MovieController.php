@@ -28,6 +28,7 @@ class MovieController extends Controller
             'viu' => 'Viu',
             'vidio' => 'Vidio',
             'hbomax' => 'HBO Max',
+            'apple' => 'Apple TV',
         ];
 
         $providerId = null;
@@ -38,8 +39,13 @@ class MovieController extends Controller
             );
         }
 
+        // Koleksi khusus Disney & Pixar untuk beranda
+        $disneyId = $this->tmdbService->findProviderIdByName('Disney', $region);
+        $disneyCollection = $disneyId ? $this->tmdbService->getTrending($disneyId, $region, 1) : null;
+
         return Inertia::render('Home', [
             'provider' => $providerKey,
+            'disneyCollection' => $disneyCollection,
             'page' => $page,
             // Main categories
             'trending' => $this->tmdbService->getTrending($providerId, $region, $page),
@@ -112,6 +118,11 @@ class MovieController extends Controller
             ? $this->tmdbService->getMovieDetails($id)
             : $this->tmdbService->getTvDetails($id);
 
+        $externalIds = $this->tmdbService->getExternalIds($type, $id);
+        if ($externalIds) {
+            $data['external_ids'] = $externalIds;
+        }
+
         return response()->json($data);
     }
 
@@ -151,6 +162,7 @@ class MovieController extends Controller
             'viu' => 'Viu',
             'vidio' => 'Vidio',
             'hbomax' => 'HBO Max',
+            'apple' => 'Apple TV',
         ];
 
         $providerId = null;
@@ -248,6 +260,11 @@ class MovieController extends Controller
             case 'now-playing':
                 $title = 'Now Playing in Theaters';
                 $data = $this->tmdbService->getNowPlaying($page);
+                break;
+            case 'disney':
+                $title = 'Disney+ Hotstar';
+                $targetId = $providerId ?: $this->tmdbService->findProviderIdByName('Disney', $region);
+                $data = $this->tmdbService->getTrending($targetId, $region, $page);
                 break;
         }
 

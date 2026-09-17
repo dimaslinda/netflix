@@ -1,5 +1,12 @@
 import Hls from 'hls.js';
-import { Headphones, Loader2, Play, Settings, Volume2, VolumeX } from 'lucide-react';
+import {
+    Headphones,
+    Loader2,
+    Play,
+    Settings,
+    Volume2,
+    VolumeX,
+} from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 interface AudioTrack {
@@ -16,7 +23,13 @@ interface HlsPlayerProps {
     onReady?: () => void;
 }
 
-export default function HlsPlayer({ src, title, poster, onError, onReady }: HlsPlayerProps) {
+export default function HlsPlayer({
+    src,
+    title,
+    poster,
+    onError,
+    onReady,
+}: HlsPlayerProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const hlsRef = useRef<Hls | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -178,8 +191,10 @@ export default function HlsPlayer({ src, title, poster, onError, onReady }: HlsP
         return (
             <div className="flex h-full w-full items-center justify-center bg-black text-white">
                 <div className="text-center">
-                    <p className="text-red-500 text-lg">{error}</p>
-                    <p className="text-zinc-400 mt-2 text-sm">Try using an alternative source</p>
+                    <p className="text-lg text-red-500">{error}</p>
+                    <p className="mt-2 text-sm text-zinc-400">
+                        Try using an alternative source
+                    </p>
                 </div>
             </div>
         );
@@ -203,7 +218,9 @@ export default function HlsPlayer({ src, title, poster, onError, onReady }: HlsP
                 <div className="absolute inset-0 flex items-center justify-center bg-black/80">
                     <div className="text-center">
                         <Loader2 className="mx-auto h-12 w-12 animate-spin text-purple-500" />
-                        <p className="mt-4 text-white">Loading multi-audio stream...</p>
+                        <p className="mt-4 text-white">
+                            Loading multi-audio stream...
+                        </p>
                     </div>
                 </div>
             )}
@@ -215,21 +232,27 @@ export default function HlsPlayer({ src, title, poster, onError, onReady }: HlsP
                         className="flex h-20 w-20 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm transition hover:bg-white/30"
                         onClick={togglePlay}
                     >
-                        <Play className="h-10 w-10 text-white ml-1" fill="white" />
+                        <Play
+                            className="ml-1 h-10 w-10 text-white"
+                            fill="white"
+                        />
                     </button>
                 </div>
             )}
 
             {/* Controls */}
             <div
-                className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-4 transition-opacity ${showControls ? 'opacity-100' : 'opacity-0'
-                    }`}
+                className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-4 transition-opacity ${
+                    showControls ? 'opacity-100' : 'opacity-0'
+                }`}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Title */}
                 {title && (
                     <div className="mb-4 flex items-center gap-2">
-                        <span className="text-lg font-medium text-white">{title}</span>
+                        <span className="text-lg font-medium text-white">
+                            {title}
+                        </span>
                         {audioTracks.length > 1 && (
                             <span className="rounded bg-green-600/30 px-2 py-0.5 text-xs text-green-400">
                                 🎧 Multi-Audio
@@ -256,11 +279,14 @@ export default function HlsPlayer({ src, title, poster, onError, onReady }: HlsP
                             className="text-white transition hover:text-zinc-300"
                             onClick={togglePlay}
                         >
-                            <Play className={`h-6 w-6 ${isPlaying ? 'hidden' : ''}`} fill="white" />
+                            <Play
+                                className={`h-6 w-6 ${isPlaying ? 'hidden' : ''}`}
+                                fill="white"
+                            />
                             {isPlaying && (
                                 <div className="flex gap-1">
-                                    <div className="h-6 w-2 bg-white rounded" />
-                                    <div className="h-6 w-2 bg-white rounded" />
+                                    <div className="h-6 w-2 rounded bg-white" />
+                                    <div className="h-6 w-2 rounded bg-white" />
                                 </div>
                             )}
                         </button>
@@ -287,20 +313,30 @@ export default function HlsPlayer({ src, title, poster, onError, onReady }: HlsP
                             <div className="relative">
                                 <button
                                     className="flex items-center gap-2 rounded bg-zinc-800 px-3 py-1.5 text-sm text-white transition hover:bg-zinc-700"
-                                    onClick={() => setShowAudioMenu(!showAudioMenu)}
+                                    onClick={() =>
+                                        setShowAudioMenu(!showAudioMenu)
+                                    }
                                 >
                                     <Headphones className="h-4 w-4" />
-                                    {audioTracks[currentAudioTrack]?.lang?.toUpperCase() || 'Audio'}
+                                    {audioTracks[
+                                        currentAudioTrack
+                                    ]?.lang?.toUpperCase() || 'Audio'}
                                 </button>
 
                                 {showAudioMenu && (
-                                    <div className="absolute bottom-full right-0 mb-2 rounded bg-zinc-900 py-1 shadow-xl">
+                                    <div className="absolute right-0 bottom-full mb-2 rounded bg-zinc-900 py-1 shadow-xl">
                                         {audioTracks.map((track) => (
                                             <button
                                                 key={track.id}
-                                                className={`block w-full px-4 py-2 text-left text-sm text-white hover:bg-zinc-800 ${track.id === currentAudioTrack ? 'bg-zinc-800' : ''
-                                                    }`}
-                                                onClick={() => switchAudioTrack(track.id)}
+                                                className={`block w-full px-4 py-2 text-left text-sm text-white hover:bg-zinc-800 ${
+                                                    track.id ===
+                                                    currentAudioTrack
+                                                        ? 'bg-zinc-800'
+                                                        : ''
+                                                }`}
+                                                onClick={() =>
+                                                    switchAudioTrack(track.id)
+                                                }
                                             >
                                                 {track.name} ({track.lang})
                                             </button>

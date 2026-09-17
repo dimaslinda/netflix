@@ -1,208 +1,132 @@
 import { Head, router } from '@inertiajs/react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 
-import Hero from '@/components/netflix/Hero';
+import MovieCard from '@/components/netflix/MovieCard';
 import MovieModal from '@/components/netflix/MovieModal';
 import Navbar from '@/components/netflix/Navbar';
 import { Movie, TmdbResponse } from '@/types/tmdb';
 
-type ProviderKey =
-    | 'netflix'
-    | 'prime'
-    | 'disney'
-    | 'viu'
-    | 'vidio'
-    | 'hbomax';
-
 interface BrowseCategoryProps {
-    provider?: ProviderKey | null;
     category: string;
     title: string;
     page: number;
     results: TmdbResponse;
 }
 
-const PROVIDER_THEMES: Record<
-    ProviderKey,
-    { background: string; headTitlePrefix: string }
-> = {
-    netflix: {
-        background: '#141414',
-        headTitlePrefix: 'Netflix',
-    },
-    prime: {
-        background: '#0f171e',
-        headTitlePrefix: 'Prime Video',
-    },
-    disney: {
-        background: '#040714',
-        headTitlePrefix: 'Disney+',
-    },
-    viu: {
-        background: '#1a1a1a',
-        headTitlePrefix: 'Viu',
-    },
-    vidio: {
-        background: '#141414',
-        headTitlePrefix: 'Vidio',
-    },
-    hbomax: {
-        background: '#0f1a2a',
-        headTitlePrefix: 'HBO Max',
-    },
-};
-
+/**
+ * Kisi hasil untuk satu kategori.
+ *
+ * Tanpa panel pembuka: halaman ini dibuka pemirsa yang sudah tahu apa yang
+ * dicari, jadi yang berharga adalah kepadatan hasil, bukan satu judul besar.
+ * Itu juga yang membedakan irama halaman ini dari beranda.
+ */
 export default function BrowseCategory({
-    provider,
     category,
     title,
     page,
     results,
 }: BrowseCategoryProps) {
     const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
-    const [isMovieOpen, setIsMovieOpen] = useState(false);
 
-    const providerKey: ProviderKey = (
-        ['netflix', 'prime', 'disney', 'viu', 'vidio', 'hbomax'] as const
-    ).includes((provider ?? 'netflix') as ProviderKey)
-        ? ((provider ?? 'netflix') as ProviderKey)
-        : 'netflix';
+    const items = results.results ?? [];
+    const totalPages = results.total_pages ?? 1;
+    const hasNextPage = page < totalPages;
 
-    const theme = PROVIDER_THEMES[providerKey];
-
-    const heroMovie = useMemo(
-        () =>
-            (results.results || []).find(
-                (m) => m.backdrop_path || m.poster_path,
-            ) || results.results[0],
-        [results.results],
-    );
-
-    const headTitle = `${title} - ${theme.headTitlePrefix}`;
-
-    const handleChangeProvider = () => {
-        if (typeof window !== 'undefined') {
-            try {
-                window.localStorage.removeItem('selectedProvider');
-            } catch {
-                void 0;
-            }
-        }
-        router.visit('/streaming/select');
-    };
-
-    const handleOpenMovie = (movie: Movie) => {
-        setSelectedMovie(movie);
-        setIsMovieOpen(true);
-    };
-
-    const handleChangePage = (nextPage: number) => {
-        if (nextPage < 1 || nextPage === page) return;
-
-        const searchParams = new URLSearchParams();
-        searchParams.set('page', String(nextPage));
-        if (providerKey) {
-            searchParams.set('provider', providerKey);
+    const goToPage = (nextPage: number) => {
+        if (nextPage < 1 || nextPage > totalPages || nextPage === page) {
+            return;
         }
 
-        router.visit(`/browse/${category}?${searchParams.toString()}`);
+        router.visit(`/browse/${category}?page=${nextPage}`);
     };
 
     return (
-        <div
-            className="min-h-screen overflow-x-hidden"
-            style={{ backgroundColor: theme.background }}
-        >
-            <Head title={headTitle} />
-            <Navbar
-                onSearchClick={() => {
-                    const params = new URLSearchParams();
-                    if (providerKey) params.set('provider', providerKey);
-                    router.visit(`/search?${params.toString()}`);
-                }}
-                onProviderChange={handleChangeProvider}
-                onCategoryChange={() => {
-                    const params = new URLSearchParams();
-                    params.set('provider', providerKey);
-                    router.visit(`/?${params.toString()}`);
-                }}
-                activeCategory="home"
-                brand={providerKey}
-            />
+        <div className="min-h-screen overflow-x-hidden bg-[var(--cinema-base)] text-[var(--cinema-ink)]">
+            <Head title={title} />
+            <Navbar activePath={`/browse/${category}`} />
 
-            <main className="relative pb-24">
-                {heroMovie ? (
-                    <Hero movie={heroMovie} onPlay={handleOpenMovie} />
-                ) : null}
-
-                <section className="px-4 pt-6 md:px-16">
-                    <h1 className="mb-4 text-xl font-semibold text-white md:text-2xl">
+            <main className="px-4 pt-24 pb-20 md:px-12 lg:px-16">
+                <header className="mb-8">
+                    <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
                         {title}
                     </h1>
-                    <div className="grid gap-4 text-white sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-                        {results.results.map((movie) => {
-                            const backdropPath =
-                                movie.backdrop_path || movie.poster_path;
-                            const imageUrl = backdropPath
-                                ? `https://image.tmdb.org/t/p/w780${backdropPath}`
-                                : 'https://placehold.co/780x439/1a1a1a/ffffff?text=No+Image';
-                            const movieTitle =
-                                movie.title || movie.name || movie.original_name;
+                    {items.length > 0 && (
+                        <p className="mt-1.5 text-[13px] text-[var(--cinema-ink-faint)]">
+                            Halaman {page} dari{' '}
+                            {totalPages.toLocaleString('id-ID')}
+                        </p>
+                    )}
+                </header>
 
-                            return (
-                                <button
-                                    key={movie.id}
-                                    type="button"
-                                    className="flex flex-col text-left"
-                                    onClick={() => handleOpenMovie(movie)}
-                                >
-                                    <div className="overflow-hidden rounded-sm bg-zinc-900 transition duration-300 hover:scale-[1.03]">
-                                        <img
-                                            src={imageUrl}
-                                            alt={movieTitle}
-                                            className="aspect-video h-auto w-full object-cover"
-                                            loading="lazy"
-                                        />
-                                    </div>
-                                    <span className="mt-2 line-clamp-1 text-xs md:text-sm">
-                                        {movieTitle}
-                                    </span>
-                                </button>
-                            );
-                        })}
-                    </div>
-
-                    <div className="mt-8 flex items-center justify-center gap-4 text-sm text-white">
+                {items.length === 0 ? (
+                    <div className="mx-auto max-w-lg rounded-[var(--cinema-radius-panel)] border border-[var(--cinema-line)] bg-[var(--cinema-raised)] px-8 py-14 text-center">
+                        <p className="font-semibold">
+                            Tidak ada judul di halaman ini
+                        </p>
+                        <p className="mt-2 text-sm leading-relaxed text-[var(--cinema-ink-soft)]">
+                            Kategori ini kosong, atau nomor halamannya melewati
+                            akhir daftar.
+                        </p>
                         <button
                             type="button"
-                            className="rounded bg-zinc-800 px-4 py-2 disabled:opacity-40"
-                            disabled={page <= 1}
-                            onClick={() => handleChangePage(page - 1)}
+                            onClick={() => goToPage(1)}
+                            className="cinema-focus mt-6 inline-flex min-h-11 items-center rounded bg-[var(--cinema-accent)] px-5 text-sm font-bold text-[var(--cinema-accent-ink)] transition hover:brightness-110"
                         >
-                            Previous
-                        </button>
-                        <span>Page {page}</span>
-                        <button
-                            type="button"
-                            className="rounded bg-zinc-800 px-4 py-2"
-                            onClick={() => handleChangePage(page + 1)}
-                        >
-                            Next
+                            Kembali ke halaman pertama
                         </button>
                     </div>
-                </section>
+                ) : (
+                    <>
+                        <ul className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+                            {items.map((movie) => (
+                                <li key={movie.id}>
+                                    <MovieCard
+                                        movie={movie}
+                                        onSelect={setSelectedMovie}
+                                        size="poster"
+                                        showTitleBelow
+                                        isSearchCard
+                                    />
+                                </li>
+                            ))}
+                        </ul>
+
+                        <nav
+                            aria-label="Navigasi halaman"
+                            className="mt-12 flex items-center justify-center gap-3"
+                        >
+                            <button
+                                type="button"
+                                disabled={page <= 1}
+                                onClick={() => goToPage(page - 1)}
+                                className="cinema-focus min-h-11 rounded bg-[var(--cinema-raised)] px-5 text-sm font-semibold transition hover:bg-[var(--cinema-overlay)] disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                                Sebelumnya
+                            </button>
+                            <button
+                                type="button"
+                                disabled={!hasNextPage}
+                                onClick={() => goToPage(page + 1)}
+                                className="cinema-focus min-h-11 rounded bg-[var(--cinema-raised)] px-5 text-sm font-semibold transition hover:bg-[var(--cinema-overlay)] disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                                Berikutnya
+                            </button>
+                        </nav>
+                    </>
+                )}
             </main>
 
-            {isMovieOpen && selectedMovie ? (
+            {selectedMovie && (
                 <MovieModal
-                    open={isMovieOpen}
+                    open
                     onOpenChange={(open) => {
-                        setIsMovieOpen(open);
-                        if (!open) setSelectedMovie(null);
+                        if (!open) {
+                            setSelectedMovie(null);
+                        }
                     }}
                     movie={selectedMovie}
                 />
-            ) : null}
+            )}
         </div>
     );
 }

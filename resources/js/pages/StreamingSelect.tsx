@@ -83,7 +83,7 @@ export default function StreamingSelect() {
                 Pilih platform langganan yang ingin Anda lihat katalognya.
             </p>
 
-            <div className="flex flex-wrap justify-center gap-6 max-w-4xl">
+            <div className="flex max-w-4xl flex-wrap justify-center gap-6">
                 {PROVIDERS.map((p) => (
                     <button
                         key={p.key}
@@ -111,7 +111,8 @@ export default function StreamingSelect() {
             </div>
 
             <p className="mt-10 text-xs text-zinc-500">
-                💡 Multi-Audio tersedia untuk konten yang mendukung via NetMirror
+                💡 Multi-Audio tersedia untuk konten yang mendukung via
+                NetMirror
             </p>
         </div>
     );

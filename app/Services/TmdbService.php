@@ -542,6 +542,33 @@ class TmdbService
         return $this->fetch("/search/multi?{$queryString}");
     }
 
+    /**
+     * Pencarian khusus film, dengan saringan tahun opsional.
+     *
+     * Dipakai untuk mencocokkan berkas Internet Archive ke satu judul TMDB.
+     * Berbeda dari searchMulti yang mencampur film, serial, dan orang, di sini
+     * hanya film yang relevan.
+     *
+     * @return array<string, mixed>
+     */
+    public function searchMovie(string $query, ?int $year = null): array
+    {
+        $parameters = [
+            'query' => $query,
+            'include_adult' => 'false',
+            'language' => 'en-US',
+            'page' => 1,
+        ];
+
+        if ($year !== null) {
+            $parameters['year'] = $year;
+        }
+
+        $result = $this->fetch('/search/movie?'.http_build_query($parameters));
+
+        return is_array($result) ? $result : ['results' => []];
+    }
+
     public function getMovieDetails($id)
     {
         $queryString = http_build_query(['language' => 'en-US']);
@@ -575,6 +602,12 @@ class TmdbService
         $queryString = http_build_query(['language' => 'en-US']);
 
         return $this->fetch("/tv/{$id}/season/{$seasonNumber}?{$queryString}");
+    }
+
+    public function getExternalIds($type, $id)
+    {
+        $queryString = http_build_query(['language' => 'en-US']);
+        return $this->fetch("/{$type}/{$id}/external_ids?{$queryString}");
     }
 
     protected function fetch($endpoint)

@@ -1,335 +1,433 @@
+import { Link, router, usePage } from '@inertiajs/react';
 import {
-    Bell,
+    Bookmark,
     ChevronDown,
+    Clock,
+    LogOut,
     Menu,
     Search,
-    User,
+    User as UserIcon,
     X,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-import NetflixLogo from './NetflixLogo';
+import { cn } from '@/lib/utils';
 
-type CategoryKey = 'home' | 'tv' | 'movie' | 'new' | 'mylist';
-
-type ProviderBrand =
-    | 'netflix'
-    | 'prime'
-    | 'disney'
-    | 'viu'
-    | 'vidio'
-    | 'hbomax';
+import BrandMark from './BrandMark';
+import NetflixAvatar from './NetflixAvatar';
 
 interface NavbarProps {
-    onSearchClick?: () => void;
-    onCategoryChange?: (key: CategoryKey) => void;
-    onProviderChange?: () => void;
-    activeCategory?: CategoryKey;
-    brand?: ProviderBrand | null;
+    /** Rute yang sedang aktif, dipakai untuk menandai tautan terpilih. */
+    activePath?: string;
 }
 
-const BRAND_CONFIG: Record<
-    ProviderBrand,
-    { label: string; accentClass: string; navBgClass: string; logo?: boolean }
-> = {
-    netflix: {
-        label: 'NETFLIX',
-        accentClass: 'text-red-600',
-        navBgClass: 'bg-zinc-900/95',
-        logo: true,
-    },
-    prime: {
-        label: 'prime video',
-        accentClass: 'text-[#00a8e1]',
-        navBgClass: 'bg-[#0f171e]/95',
-    },
-    disney: {
-        label: 'Disney+',
-        accentClass: 'text-[#1f80ff]',
-        navBgClass: 'bg-[#040714]/95',
-    },
-    viu: {
-        label: 'viu',
-        accentClass: 'text-[#fdd835]',
-        navBgClass: 'bg-[#1a1a1a]/95',
-    },
-    vidio: {
-        label: 'Vidio',
-        accentClass: 'text-[#e50914]',
-        navBgClass: 'bg-[#141414]/95',
-    },
-    hbomax: {
-        label: 'HBO Max',
-        accentClass: 'text-[#b535f6]',
-        navBgClass: 'bg-[#0f1a2a]/95',
-    },
-};
+/**
+ * Setiap tautan di sini menunjuk rute yang benar-benar terdaftar di
+ * routes/web.php. Menu yang belum punya halaman tidak dipasang, karena tautan
+ * buntu lebih merusak kepercayaan daripada menu yang pendek.
+ */
+const PRIMARY_LINKS = [
+    { label: 'Beranda', href: '/' },
+    { label: 'Disney+', href: '/browse/disney' },
+    { label: 'Film', href: '/browse/trending' },
+    { label: 'Serial', href: '/browse/popular-tv' },
+    { label: 'Baru Tayang', href: '/browse/now-playing' },
+    { label: 'Daftar Saya', href: '/account?tab=bookmarks' },
+] as const;
 
-const CATEGORIES = [
-    { key: 'home' as CategoryKey, label: 'Home' },
-    { key: 'tv' as CategoryKey, label: 'TV Shows' },
-    { key: 'movie' as CategoryKey, label: 'Movies' },
-    { key: 'new' as CategoryKey, label: 'New & Popular' },
-    { key: 'mylist' as CategoryKey, label: 'My List' },
-];
+const GENRE_LINKS = [
+    { label: 'Laga', href: '/browse/action' },
+    { label: 'Komedi', href: '/browse/comedy' },
+    { label: 'Horor', href: '/browse/horror' },
+    { label: 'Fiksi Ilmiah', href: '/browse/scifi' },
+    { label: 'Drama Korea', href: '/browse/korean' },
+    { label: 'Anime', href: '/browse/anime' },
+    { label: 'Dokumenter', href: '/browse/documentaries' },
+] as const;
 
-export default function Navbar({
-    onSearchClick,
-    onCategoryChange,
-    onProviderChange,
-    activeCategory = 'home',
-    brand = 'netflix',
-}: NavbarProps) {
+interface AuthUser {
+    id: number;
+    name: string;
+    email: string;
+    avatar?: string;
+}
+
+export default function Navbar({ activePath }: NavbarProps) {
+    const { auth } = usePage<{ auth?: { user?: AuthUser | null } }>().props;
+    const user = auth?.user;
+
     const [isScrolled, setIsScrolled] = useState(false);
-    const [showMobileMenu, setShowMobileMenu] = useState(false);
-    const [showBrowseMenu, setShowBrowseMenu] = useState(false);
-    const [showProfileMenu, setShowProfileMenu] = useState(false);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const profileRef = useRef<HTMLDivElement>(null);
 
+    // Tutup dropdown profil saat mengeklik di luar elemen
     useEffect(() => {
-        const handleScroll = () => {
-            setIsScrolled(window.scrollY > 0);
+        if (!isProfileOpen) return;
+        const handleClickOutside = (e: MouseEvent) => {
+            if (
+                profileRef.current &&
+                !profileRef.current.contains(e.target as Node)
+            ) {
+                setIsProfileOpen(false);
+            }
         };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () =>
+            document.removeEventListener('mousedown', handleClickOutside);
+    }, [isProfileOpen]);
 
-        window.addEventListener('scroll', handleScroll);
+    // Bilah atas tembus pandang di puncak halaman supaya seni kunci hero utuh,
+    // lalu memadat begitu pemirsa menggulir agar tautan tetap terbaca.
+    useEffect(() => {
+        const handleScroll = () => setIsScrolled(window.scrollY > 24);
+
+        handleScroll();
+        window.addEventListener('scroll', handleScroll, { passive: true });
+
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
-    const brandKey: ProviderBrand = (
-        ['netflix', 'prime', 'disney', 'viu', 'vidio', 'hbomax'] as const
-    ).includes(brand ?? 'netflix')
-        ? ((brand ?? 'netflix') as ProviderBrand)
-        : 'netflix';
+    // Menu geser menahan gulir halaman di belakangnya, dan tertutup dengan
+    // Escape seperti dialog mana pun.
+    useEffect(() => {
+        if (!isMenuOpen) {
+            return;
+        }
 
-    const currentBrand = BRAND_CONFIG[brandKey];
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setIsMenuOpen(false);
+            }
+        };
+
+        document.body.style.overflow = 'hidden';
+        window.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            document.body.style.overflow = '';
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isMenuOpen]);
+
+    const currentPath =
+        activePath ??
+        (typeof window === 'undefined'
+            ? '/'
+            : window.location.pathname + window.location.search);
 
     return (
         <>
-            <nav
-                className={`fixed top-0 z-50 w-full transition-all duration-500 ${isScrolled
-                        ? `${currentBrand.navBgClass} backdrop-blur-sm shadow-lg`
-                        : 'bg-gradient-to-b from-black/80 via-black/40 to-transparent'
-                    }`}
+            <header
+                className={cn(
+                    'fixed inset-x-0 top-0 z-50 transition-colors duration-300',
+                    isScrolled
+                        ? 'bg-[var(--cinema-base)]/95 backdrop-blur-md'
+                        : 'bg-gradient-to-b from-black/80 to-transparent',
+                )}
             >
-                <div className="flex items-center justify-between px-4 py-3 md:px-12 lg:px-16">
-                    {/* Left Section */}
-                    <div className="flex items-center gap-6 lg:gap-12">
-                        {/* Logo */}
-                        <div className="flex items-center">
-                            {currentBrand.logo ? (
-                                <NetflixLogo
-                                    className="h-6 w-auto cursor-pointer transition hover:opacity-80 md:h-7"
-                                    width={92}
-                                    height={25}
-                                />
-                            ) : (
-                                <h1
-                                    className={`text-xl font-bold sm:text-2xl ${currentBrand.accentClass}`}
+                <nav
+                    aria-label="Navigasi utama"
+                    className="flex h-16 items-center gap-6 px-4 md:h-[68px] md:px-12 lg:px-16"
+                >
+                    <Link
+                        href="/"
+                        aria-label="Ke beranda"
+                        className="cinema-focus shrink-0"
+                    >
+                        <BrandMark />
+                    </Link>
+
+                    <ul className="hidden items-center gap-6 lg:flex">
+                        {PRIMARY_LINKS.map((link) => (
+                            <li key={link.href}>
+                                <Link
+                                    href={link.href}
+                                    className={cn(
+                                        'cinema-focus text-[13px] font-medium transition-colors',
+                                        currentPath === link.href
+                                            ? 'text-[var(--cinema-ink)]'
+                                            : 'text-[var(--cinema-ink-soft)] hover:text-[var(--cinema-ink)]',
+                                    )}
                                 >
-                                    {currentBrand.label}
-                                </h1>
-                            )}
+                                    {link.label}
+                                </Link>
+                            </li>
+                        ))}
+                    </ul>
+
+                    <div className="ml-auto flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => router.visit('/search')}
+                            aria-label="Cari judul"
+                            className="cinema-focus flex h-11 w-11 items-center justify-center rounded-full text-[var(--cinema-ink)] transition hover:bg-white/10"
+                        >
+                            <Search className="h-5 w-5" aria-hidden="true" />
+                        </button>
+
+                        {/* Bagian Akun / Autentikasi Pengguna */}
+                        {user ? (
+                            <div className="relative" ref={profileRef}>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setIsProfileOpen((prev) => !prev)
+                                    }
+                                    aria-label="Menu profil akun"
+                                    aria-expanded={isProfileOpen}
+                                    className="cinema-focus flex items-center gap-1.5 rounded-sm p-1 transition hover:opacity-85"
+                                >
+                                    <NetflixAvatar
+                                        avatarId={user.avatar}
+                                        size="sm"
+                                    />
+                                    <ChevronDown
+                                        className={cn(
+                                            'h-3.5 w-3.5 text-zinc-400 transition-transform duration-200',
+                                            isProfileOpen && 'rotate-180',
+                                        )}
+                                        aria-hidden="true"
+                                    />
+                                </button>
+
+                                {isProfileOpen && (
+                                    <div className="absolute right-0 mt-2 w-56 rounded-lg border border-white/10 bg-zinc-950/95 p-1.5 shadow-2xl backdrop-blur-md">
+                                        <div className="flex items-center gap-2.5 border-b border-white/10 px-3 py-2.5">
+                                            <NetflixAvatar
+                                                avatarId={user.avatar}
+                                                size="sm"
+                                            />
+                                            <div className="min-w-0 flex-1">
+                                                <p className="truncate text-xs font-bold text-white">
+                                                    {user.name}
+                                                </p>
+                                                <p className="truncate text-[11px] text-zinc-400">
+                                                    {user.email}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="py-1">
+                                            <Link
+                                                href="/account?tab=bookmarks"
+                                                onClick={() =>
+                                                    setIsProfileOpen(false)
+                                                }
+                                                className="flex items-center gap-2.5 rounded px-3 py-2 text-xs font-medium text-zinc-300 transition hover:bg-white/10 hover:text-white"
+                                            >
+                                                <Bookmark className="h-4 w-4 text-zinc-400" />
+                                                <span>Daftar Saya</span>
+                                            </Link>
+
+                                            <Link
+                                                href="/account?tab=history"
+                                                onClick={() =>
+                                                    setIsProfileOpen(false)
+                                                }
+                                                className="flex items-center gap-2.5 rounded px-3 py-2 text-xs font-medium text-zinc-300 transition hover:bg-white/10 hover:text-white"
+                                            >
+                                                <Clock className="h-4 w-4 text-zinc-400" />
+                                                <span>Riwayat Tontonan</span>
+                                            </Link>
+
+                                            <Link
+                                                href="/account"
+                                                onClick={() =>
+                                                    setIsProfileOpen(false)
+                                                }
+                                                className="flex items-center gap-2.5 rounded px-3 py-2 text-xs font-medium text-zinc-300 transition hover:bg-white/10 hover:text-white"
+                                            >
+                                                <UserIcon className="h-4 w-4 text-zinc-400" />
+                                                <span>Pengaturan Akun</span>
+                                            </Link>
+                                        </div>
+
+                                        <div className="border-t border-white/10 pt-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setIsProfileOpen(false);
+                                                    router.post('/logout');
+                                                }}
+                                                className="flex w-full items-center gap-2.5 rounded px-3 py-2 text-left text-xs font-medium text-red-400 transition hover:bg-red-500/10 hover:text-red-300"
+                                            >
+                                                <LogOut className="h-4 w-4" />
+                                                <span>Keluar</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2">
+                                <Link
+                                    href="/login"
+                                    className="cinema-focus flex min-h-[36px] items-center justify-center rounded bg-[#E50914] px-4 py-1.5 text-xs font-bold text-white transition hover:bg-red-700 active:scale-95"
+                                >
+                                    Masuk
+                                </Link>
+                            </div>
+                        )}
+
+                        <button
+                            type="button"
+                            onClick={() => setIsMenuOpen(true)}
+                            aria-label="Buka menu"
+                            aria-expanded={isMenuOpen}
+                            className="cinema-focus flex h-11 w-11 items-center justify-center rounded-full text-[var(--cinema-ink)] transition hover:bg-white/10 lg:hidden"
+                        >
+                            <Menu className="h-5 w-5" aria-hidden="true" />
+                        </button>
+                    </div>
+                </nav>
+            </header>
+
+            {isMenuOpen && (
+                <div className="fixed inset-0 z-[60]">
+                    <button
+                        type="button"
+                        aria-label="Tutup menu"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                    />
+
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Menu navigasi"
+                        className="absolute inset-y-0 right-0 flex w-full max-w-sm flex-col overflow-y-auto bg-[var(--cinema-raised)] p-6 shadow-2xl"
+                    >
+                        <div className="flex items-center justify-between">
+                            <BrandMark />
+                            <button
+                                type="button"
+                                onClick={() => setIsMenuOpen(false)}
+                                aria-label="Tutup menu"
+                                className="cinema-focus flex h-11 w-11 items-center justify-center rounded-full text-[var(--cinema-ink)] transition hover:bg-white/10"
+                            >
+                                <X className="h-5 w-5" aria-hidden="true" />
+                            </button>
                         </div>
 
-                        {/* Desktop Navigation */}
-                        <ul className="hidden items-center gap-5 text-sm font-light text-gray-200 lg:flex">
-                            {CATEGORIES.map((cat) => (
-                                <li key={cat.key}>
+                        <MenuSection
+                            title="Jelajah"
+                            links={PRIMARY_LINKS}
+                            onNavigate={() => setIsMenuOpen(false)}
+                        />
+                        <MenuSection
+                            title="Genre"
+                            links={GENRE_LINKS}
+                            onNavigate={() => setIsMenuOpen(false)}
+                        />
+
+                        {/* Mobile Account Section */}
+                        <div className="mt-8 border-t border-white/10 pt-6">
+                            {user ? (
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex items-center gap-3 px-3 pb-3">
+                                        <NetflixAvatar
+                                            avatarId={user.avatar}
+                                            size="md"
+                                        />
+                                        <div className="min-w-0 flex-1 flex flex-col">
+                                            <span className="truncate text-sm font-bold text-white">
+                                                {user.name}
+                                            </span>
+                                            <span className="truncate text-xs text-zinc-400">
+                                                {user.email}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <Link
+                                        href="/account?tab=bookmarks"
+                                        onClick={() => setIsMenuOpen(false)}
+                                        className="cinema-focus flex min-h-11 items-center gap-2.5 rounded px-3 text-[15px] font-medium text-zinc-300 transition hover:bg-white/5 hover:text-white"
+                                    >
+                                        <Bookmark className="h-4 w-4 text-zinc-400" />
+                                        <span>Daftar Saya</span>
+                                    </Link>
+                                    <Link
+                                        href="/account?tab=history"
+                                        onClick={() => setIsMenuOpen(false)}
+                                        className="cinema-focus flex min-h-11 items-center gap-2.5 rounded px-3 text-[15px] font-medium text-zinc-300 transition hover:bg-white/5 hover:text-white"
+                                    >
+                                        <Clock className="h-4 w-4 text-zinc-400" />
+                                        <span>Riwayat Tontonan</span>
+                                    </Link>
+                                    <Link
+                                        href="/account"
+                                        onClick={() => setIsMenuOpen(false)}
+                                        className="cinema-focus flex min-h-11 items-center gap-2.5 rounded px-3 text-[15px] font-medium text-zinc-300 transition hover:bg-white/5 hover:text-white"
+                                    >
+                                        <UserIcon className="h-4 w-4 text-zinc-400" />
+                                        <span>Pengaturan Akun</span>
+                                    </Link>
                                     <button
                                         type="button"
-                                        className={`transition duration-300 hover:text-gray-400 ${activeCategory === cat.key
-                                                ? 'font-medium text-white'
-                                                : ''
-                                            }`}
-                                        onClick={() => onCategoryChange?.(cat.key)}
+                                        onClick={() => {
+                                            setIsMenuOpen(false);
+                                            router.post('/logout');
+                                        }}
+                                        className="cinema-focus flex min-h-11 items-center gap-2.5 rounded px-3 text-left text-[15px] font-medium text-red-400 transition hover:bg-red-500/10 hover:text-red-300"
                                     >
-                                        {cat.label}
+                                        <LogOut className="h-4 w-4" />
+                                        <span>Keluar</span>
                                     </button>
-                                </li>
-                            ))}
-                        </ul>
-
-                        {/* Browse Menu (Tablet) */}
-                        <div className="relative hidden md:block lg:hidden">
-                            <button
-                                type="button"
-                                className="flex items-center gap-1 text-sm font-medium text-white"
-                                onClick={() => setShowBrowseMenu(!showBrowseMenu)}
-                            >
-                                Browse
-                                <ChevronDown
-                                    className={`h-4 w-4 transition-transform duration-300 ${showBrowseMenu ? 'rotate-180' : ''
-                                        }`}
-                                />
-                            </button>
-                            {showBrowseMenu && (
-                                <div className="absolute top-full left-0 mt-3 w-48 border border-zinc-700 bg-black/95 py-2 shadow-xl">
-                                    <div className="absolute -top-2 left-4 h-0 w-0 border-r-8 border-b-8 border-l-8 border-r-transparent border-b-white border-l-transparent" />
-                                    {CATEGORIES.map((cat) => (
-                                        <button
-                                            key={cat.key}
-                                            type="button"
-                                            className={`block w-full px-4 py-2 text-left text-sm transition hover:bg-zinc-800 ${activeCategory === cat.key
-                                                    ? 'font-semibold text-white'
-                                                    : 'text-zinc-300'
-                                                }`}
-                                            onClick={() => {
-                                                onCategoryChange?.(cat.key);
-                                                setShowBrowseMenu(false);
-                                            }}
-                                        >
-                                            {cat.label}
-                                        </button>
-                                    ))}
                                 </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Right Section */}
-                    <div className="flex items-center gap-4 text-white md:gap-5">
-                        {/* Search */}
-                        <button
-                            type="button"
-                            onClick={onSearchClick}
-                            className="transition hover:text-zinc-300"
-                        >
-                            <Search className="h-5 w-5 cursor-pointer" />
-                        </button>
-
-                        {/* Kids (Desktop only) */}
-                        <span className="hidden cursor-pointer text-sm font-light transition hover:text-zinc-300 lg:inline">
-                            Kids
-                        </span>
-
-                        {/* Notifications */}
-                        <div className="relative">
-                            <Bell className="h-5 w-5 cursor-pointer transition hover:text-zinc-300" />
-                            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold">
-                                3
-                            </span>
-                        </div>
-
-                        {/* Profile Dropdown */}
-                        <div
-                            className="relative"
-                            onMouseEnter={() => setShowProfileMenu(true)}
-                            onMouseLeave={() => setShowProfileMenu(false)}
-                        >
-                            <button
-                                type="button"
-                                className="flex cursor-pointer items-center gap-1"
-                            >
-                                <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded">
-                                    <img
-                                        src="https://occ-0-6246-2186.1.nflxso.net/dnm/api/v6/vN7bi_My87NPKvsBoib006Llxzg/AAAABXYofKdCJceEP7pdxcEZ9wt80GsxEyXIbnG_QM8znksNz3JexvRbDLr0_AcNKr2SJtT-MLr1eCOA-e7xlDHsx4Jmmsi5ej8.png?r=1d4"
-                                        alt="Profile"
-                                        className="h-full w-full object-cover"
-                                    />
-                                </div>
-                                <ChevronDown
-                                    className={`h-4 w-4 transition-transform duration-300 ${showProfileMenu ? 'rotate-180' : ''
-                                        }`}
-                                />
-                            </button>
-                            {showProfileMenu && (
-                                <div className="absolute top-full right-0 mt-3 w-52 border border-zinc-700 bg-black/95 shadow-xl">
-                                    <div className="absolute -top-2 right-4 h-0 w-0 border-r-8 border-b-8 border-l-8 border-r-transparent border-b-white border-l-transparent" />
-                                    <div className="py-2">
-                                        <button
-                                            type="button"
-                                            className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-zinc-300 hover:underline"
-                                        >
-                                            <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded bg-yellow-500">
-                                                <User className="h-5 w-5 text-black" />
-                                            </div>
-                                            Kids
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-zinc-300 hover:underline"
-                                        >
-                                            <div className="flex h-8 w-8 items-center justify-center rounded bg-zinc-700 text-white">
-                                                +
-                                            </div>
-                                            Add Profile
-                                        </button>
-                                    </div>
-                                    <div className="border-t border-zinc-700 py-2">
-                                        <button className="block w-full px-4 py-2 text-left text-sm text-zinc-300 hover:underline">
-                                            Manage Profiles
-                                        </button>
-                                        <button className="block w-full px-4 py-2 text-left text-sm text-zinc-300 hover:underline">
-                                            Transfer Profile
-                                        </button>
-                                        <button className="block w-full px-4 py-2 text-left text-sm text-zinc-300 hover:underline">
-                                            Account
-                                        </button>
-                                        <button className="block w-full px-4 py-2 text-left text-sm text-zinc-300 hover:underline">
-                                            Help Center
-                                        </button>
-                                    </div>
-                                    <div className="border-t border-zinc-700">
-                                        <button
-                                            type="button"
-                                            onClick={onProviderChange}
-                                            className="block w-full px-4 py-3 text-center text-sm text-zinc-300 hover:underline"
-                                        >
-                                            Change Streaming Service
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Mobile Menu Toggle */}
-                        <button
-                            type="button"
-                            className="md:hidden"
-                            onClick={() => setShowMobileMenu(!showMobileMenu)}
-                        >
-                            {showMobileMenu ? (
-                                <X className="h-6 w-6" />
                             ) : (
-                                <Menu className="h-6 w-6" />
+                                <div className="flex flex-col gap-2.5">
+                                    <Link
+                                        href="/login"
+                                        onClick={() => setIsMenuOpen(false)}
+                                        className="cinema-focus flex min-h-11 items-center justify-center rounded bg-[#E50914] px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700"
+                                    >
+                                        Masuk
+                                    </Link>
+                                    <Link
+                                        href="/register"
+                                        onClick={() => setIsMenuOpen(false)}
+                                        className="cinema-focus flex min-h-11 items-center justify-center rounded border border-white/20 px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:bg-white/5 hover:text-white"
+                                    >
+                                        Daftar Akun Baru
+                                    </Link>
+                                </div>
                             )}
-                        </button>
-                    </div>
-                </div>
-            </nav>
-
-            {/* Mobile Menu Overlay */}
-            {showMobileMenu && (
-                <div className="fixed inset-0 z-40 bg-black/95 pt-16">
-                    <div className="flex h-full flex-col items-center justify-center gap-6 text-2xl">
-                        {CATEGORIES.map((cat) => (
-                            <button
-                                key={cat.key}
-                                type="button"
-                                className={`transition hover:text-zinc-400 ${activeCategory === cat.key
-                                        ? 'font-bold text-white'
-                                        : 'text-zinc-300'
-                                    }`}
-                                onClick={() => {
-                                    onCategoryChange?.(cat.key);
-                                    setShowMobileMenu(false);
-                                }}
-                            >
-                                {cat.label}
-                            </button>
-                        ))}
-                        <button
-                            type="button"
-                            onClick={() => {
-                                onProviderChange?.();
-                                setShowMobileMenu(false);
-                            }}
-                            className="mt-8 text-sm text-zinc-500 hover:text-white"
-                        >
-                            Change Streaming Service
-                        </button>
+                        </div>
                     </div>
                 </div>
             )}
         </>
+    );
+}
+
+function MenuSection({
+    title,
+    links,
+    onNavigate,
+}: {
+    title: string;
+    links: readonly { label: string; href: string }[];
+    onNavigate: () => void;
+}) {
+    return (
+        <section className="mt-8">
+            <h2 className="text-[11px] font-bold tracking-widest text-[var(--cinema-ink-faint)] uppercase">
+                {title}
+            </h2>
+            <ul className="mt-3 space-y-1">
+                {links.map((link) => (
+                    <li key={link.href}>
+                        <Link
+                            href={link.href}
+                            onClick={onNavigate}
+                            className="cinema-focus flex min-h-11 items-center rounded px-3 text-[15px] font-medium text-[var(--cinema-ink-soft)] transition hover:bg-white/5 hover:text-[var(--cinema-ink)]"
+                        >
+                            {link.label}
+                        </Link>
+                    </li>
+                ))}
+            </ul>
+        </section>
     );
 }

@@ -34,19 +34,22 @@ class OpenSubtitlesService
                 $response = Http::withHeaders([
                     'Api-Key' => $this->apiKey,
                     'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
+                    'User-Agent' => 'Antigravity-Netflix-v1.0',
                 ])->post("{$this->baseUrl}/login", [
-                            'username' => $this->username,
-                            'password' => $this->password,
-                        ]);
+                    'username' => $this->username,
+                    'password' => $this->password,
+                ]);
 
-                if ($response->successful()) {
-                    $data = $response->json();
-                    return $data['token'] ?? null;
+                if ($response->successful() && $response->json()) {
+                    $item = $response->json();
+                    Log::info('OpenSubtitles login success');
+                    return $item['token'] ?? null;
                 }
 
                 Log::warning('OpenSubtitles login failed', [
                     'status' => $response->status(),
-                    'body' => $response->body(),
+                    'body' => substr($response->body(), 0, 500),
                 ]);
 
                 return null;
@@ -143,6 +146,7 @@ class OpenSubtitlesService
             $headers = [
                 'Api-Key' => $this->apiKey,
                 'Content-Type' => 'application/json',
+                'User-Agent' => 'Antigravity-Netflix-Clone/1.0',
             ];
 
             // Add bearer token if available
@@ -152,10 +156,9 @@ class OpenSubtitlesService
 
             $response = Http::withHeaders($headers)->post("{$this->baseUrl}/download", [
                 'file_id' => $fileId,
-                'sub_format' => 'webvtt',
             ]);
 
-            if ($response->successful()) {
+            if ($response->successful() && $response->json()) {
                 $data = $response->json();
                 Log::info('OpenSubtitles download success', ['file_id' => $fileId, 'data' => $data]);
                 return $data;
@@ -225,7 +228,9 @@ class OpenSubtitlesService
         try {
             $response = Http::withHeaders([
                 'Api-Key' => $this->apiKey,
-            ])->get("{$this->baseUrl}/subtitles", $params);
+                'User-Agent' => 'Antigravity-Netflix-Clone/1.0',
+                'Accept' => 'application/json',
+            ])->timeout(15)->get("{$this->baseUrl}/subtitles", $params);
 
             if ($response->successful()) {
                 $data = $response->json();
@@ -235,6 +240,7 @@ class OpenSubtitlesService
             Log::warning('OpenSubtitles search failed', [
                 'params' => $params,
                 'status' => $response->status(),
+                'body' => $response->body(),
             ]);
 
             return [];

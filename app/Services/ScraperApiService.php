@@ -33,7 +33,40 @@ class ScraperApiService
                     ]);
 
                 if ($response->successful()) {
-                    return $response->json() ?? [];
+                    $data = $response->json();
+
+                    Log::info('ScraperAPI search response', ['data' => $data]);
+
+                    // Handle different response structures
+                    if (isset($data['success']) && $data['success']) {
+                        // API returns { success: true, data: {...} }
+                        $searchResults = $data['data'] ?? [];
+
+                        // Check if searchResults contains the actual results
+                        if (isset($searchResults['searchResults'])) {
+                            $results = $searchResults['searchResults'];
+                            // If it's an associative array with 'head' and other fields, extract items
+                            if (isset($results['items'])) {
+                                return $results['items'];
+                            }
+                            // Return as-is if it's already an array of items
+                            if (is_array($results) && !isset($results['head'])) {
+                                return $results;
+                            }
+                        }
+
+                        // Return raw data if it's an array
+                        if (is_array($searchResults) && !isset($searchResults['searchUrl'])) {
+                            return $searchResults;
+                        }
+                    }
+
+                    // Fallback: return raw response if it's an array
+                    if (is_array($data) && !isset($data['success'])) {
+                        return $data;
+                    }
+
+                    return [];
                 }
 
                 Log::warning('ScraperAPI search failed', [

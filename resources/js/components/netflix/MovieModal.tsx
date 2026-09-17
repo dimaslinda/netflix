@@ -1,9 +1,9 @@
 import {
     Check,
     ChevronDown,
-    Headphones,
     Play,
     Plus,
+    Star,
     ThumbsDown,
     ThumbsUp,
     Volume2,
@@ -38,7 +38,18 @@ function getTitle(movie: Movie): string {
     return movie.title || movie.name || movie.original_name || 'Untitled';
 }
 
-export default function MovieModal({
+export default function MovieModal(props: MovieModalProps) {
+    if (!props.open || !props.movie) {
+        return null;
+    }
+
+    // Panel dipasang ulang untuk setiap judul. Dengan begitu rincian, musim,
+    // dan keadaan suara dari judul sebelumnya lenyap dengan sendirinya, dan
+    // tidak perlu efek pembersih yang menyetel ulang state satu per satu.
+    return <MovieModalPanel key={props.movie.id} {...props} />;
+}
+
+function MovieModalPanel({
     open,
     onOpenChange,
     movie,
@@ -55,15 +66,18 @@ export default function MovieModal({
     const [videos, setVideos] = useState<TmdbVideosApiResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [season, setSeason] = useState(1);
-    const [seasonDetails, setSeasonDetails] =
-        useState<TmdbSeasonDetails | null>(null);
-    const [seasonLoading, setSeasonLoading] = useState(false);
+    const [loadedSeason, setLoadedSeason] = useState<{
+        season: number;
+        details: TmdbSeasonDetails | null;
+    } | null>(null);
     const [isMuted, setIsMuted] = useState(true);
     const [showSeasonDropdown, setShowSeasonDropdown] = useState(false);
 
-    // NetMirror multi-audio state
-    const [netmirrorId, setNetmirrorId] = useState<string | null>(null);
-    const [netmirrorLoading, setNetmirrorLoading] = useState(false);
+    // Status memuat diturunkan dari perbandingan nomor musim, bukan disetel di
+    // dalam efek. Respons musim lama juga tidak bisa menimpa musim yang baru.
+    const seasonDetails =
+        loadedSeason?.season === season ? loadedSeason.details : null;
+    const seasonLoading = mediaType === 'tv' && loadedSeason?.season !== season;
 
     useEffect(() => {
         if (!open || !id || !movie) return;
@@ -92,52 +106,25 @@ export default function MovieModal({
     useEffect(() => {
         if (!open || !id || mediaType !== 'tv') return;
 
-        setSeasonLoading(true);
         const controller = new AbortController();
+
         fetch(`/api/tmdb/tv/${id}/season/${season}`, {
             signal: controller.signal,
         })
             .then((r) => r.json())
-            .then((json: TmdbSeasonDetails) => {
-                setSeasonDetails(json);
-            })
-            .catch(() => { })
-            .finally(() => {
+            .then((json: TmdbSeasonDetails) =>
+                setLoadedSeason({ season, details: json }),
+            )
+            .catch(() => {
                 if (!controller.signal.aborted) {
-                    setSeasonLoading(false);
+                    // Musim yang gagal dimuat tetap dicatat sebagai selesai,
+                    // supaya panel tidak berputar tanpa akhir.
+                    setLoadedSeason({ season, details: null });
                 }
             });
 
         return () => controller.abort();
     }, [open, id, mediaType, season]);
-
-    // Reset state when modal closes
-    useEffect(() => {
-        if (!open) {
-            setDetails(null);
-            setVideos(null);
-            setLoading(true);
-            setSeason(1);
-            setSeasonDetails(null);
-            setNetmirrorId(null);
-        }
-    }, [open]);
-
-    // Check NetMirror availability
-    useEffect(() => {
-        if (!open || !movie) return;
-
-        // VidSrc is always available for TMDB content
-        // Just set the flag after a small delay to show "checking" state
-        setNetmirrorLoading(true);
-        const timer = setTimeout(() => {
-            // VidSrc uses TMDB ID directly, so it's always "available"
-            setNetmirrorId(String(movie.id));
-            setNetmirrorLoading(false);
-        }, 500);
-
-        return () => clearTimeout(timer);
-    }, [open, movie]);
 
     if (!open || !movie) return null;
 
@@ -152,9 +139,13 @@ export default function MovieModal({
         ? `${videos.best.embed_url}&mute=${isMuted ? 1 : 0}`
         : null;
 
-    const matchPercent = movie.vote_average
-        ? Math.min(99, Math.max(50, Math.round(movie.vote_average * 10)))
-        : 85;
+    // Rata-rata penilaian TMDB apa adanya. Tidak ada skor kecocokan: aplikasi
+    // ini tidak menyimpan riwayat tonton, jadi angka semacam itu hanya bisa
+    // dikarang.
+    const rating =
+        typeof movie.vote_average === 'number' && movie.vote_average > 0
+            ? movie.vote_average.toFixed(1)
+            : null;
 
     const year =
         movie.release_date?.split('-')[0] ||
@@ -177,12 +168,6 @@ export default function MovieModal({
         window.location.href = url;
     };
 
-    const handlePlayMultiAudio = () => {
-        // Use NetMirror for multi-audio streaming
-        const url = `/netmirror/watch/${movie.id}`;
-        window.location.href = url;
-    };
-
     const handleMoreInfoPage = () => {
         const url =
             mediaType === 'tv'
@@ -193,17 +178,12 @@ export default function MovieModal({
 
     return (
         <div
-            className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/70 px-4 py-8 md:py-12"
+            className="fixed inset-0 z-100 flex items-start justify-center overflow-y-auto bg-black/70 px-4 py-8 md:py-12"
             onClick={(e) => {
                 if (e.target === e.currentTarget) onOpenChange(false);
             }}
         >
-            <div
-                className={cn(
-                    'relative w-full max-w-4xl overflow-hidden rounded-lg bg-zinc-900 shadow-2xl',
-                    'animate-in zoom-in-95 fade-in duration-300',
-                )}
-            >
+            <div className="relative z-100 w-full max-w-4xl overflow-hidden rounded-xl bg-[#181818] shadow-2xl">
                 {/* Close Button */}
                 <button
                     type="button"
@@ -230,7 +210,7 @@ export default function MovieModal({
                             className="h-full w-full object-cover"
                         />
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/20 to-transparent" />
+                    <div className="absolute inset-x-0 bottom-0 h-40 bg-linear-to-t from-[#181818] via-[#181818]/80 to-transparent" />
 
                     {/* Bottom Controls */}
                     <div className="absolute right-0 bottom-0 left-0 p-6 md:p-10">
@@ -244,27 +224,12 @@ export default function MovieModal({
                                 className="flex items-center gap-2 rounded bg-white px-6 py-2 text-sm font-bold text-black transition hover:bg-white/80 md:px-8 md:py-2.5 md:text-lg"
                                 onClick={handlePlay}
                             >
-                                <Play className="h-5 w-5 md:h-6 md:w-6" fill="black" />
+                                <Play
+                                    className="h-5 w-5 md:h-6 md:w-6"
+                                    fill="black"
+                                />
                                 Play
                             </button>
-
-                            {/* Alternative Source Button */}
-                            {netmirrorId && (
-                                <button
-                                    type="button"
-                                    className="flex items-center gap-2 rounded bg-gradient-to-r from-purple-600 to-pink-500 px-4 py-2 text-sm font-bold text-white transition hover:opacity-90 md:px-6 md:py-2.5 md:text-base"
-                                    onClick={handlePlayMultiAudio}
-                                    title="Play with alternative source (Multi-Audio support)"
-                                >
-                                    <Headphones className="h-4 w-4 md:h-5 md:w-5" />
-                                    Alt Source
-                                </button>
-                            )}
-                            {netmirrorLoading && (
-                                <span className="text-xs text-zinc-400 animate-pulse">
-                                    Checking multi-audio...
-                                </span>
-                            )}
 
                             <button
                                 type="button"
@@ -274,7 +239,11 @@ export default function MovieModal({
                                         onToggleMyList(movie);
                                     }
                                 }}
-                                title={inMyList ? 'Remove from My List' : 'Add to My List'}
+                                title={
+                                    inMyList
+                                        ? 'Remove from My List'
+                                        : 'Add to My List'
+                                }
                             >
                                 {inMyList ? (
                                     <Check className="h-5 w-5" />
@@ -314,9 +283,18 @@ export default function MovieModal({
                                     </button>
                                 )}
 
-                                <div className="flex items-center border-l-4 border-zinc-400 bg-zinc-800/80 py-1.5 pr-4 pl-3 text-sm">
-                                    {movie.adult ? '18+' : 'TV-14'}
-                                </div>
+                                {/*
+                                    Klasifikasi umur tidak ditampilkan. TMDB
+                                    hanya mengirim penanda adult berupa boolean,
+                                    dan menerjemahkannya menjadi "TV-14" atau
+                                    "PG-13" berarti mengarang keputusan lembaga
+                                    sensor yang tidak pernah kita terima.
+                                */}
+                                {movie.adult && (
+                                    <span className="rounded border border-[var(--cinema-line)] px-2 py-1 text-xs font-bold text-[var(--cinema-ink-soft)]">
+                                        Konten dewasa
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -327,25 +305,41 @@ export default function MovieModal({
                     {/* Left Column - Main Info */}
                     <div className="md:col-span-2">
                         {/* Metadata */}
-                        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
-                            <span className="font-semibold text-[#46d369]">
-                                {matchPercent}% Match
-                            </span>
-                            {year && <span className="text-zinc-300">{year}</span>}
-                            <span className="rounded border border-zinc-500 px-1.5 py-0.5 text-xs text-zinc-400">
-                                {movie.adult ? '18+' : 'PG-13'}
-                            </span>
-                            {runtime && (
-                                <span className="text-zinc-300">{runtime}</span>
-                            )}
-                            {numberOfSeasons && (
-                                <span className="text-zinc-300">
-                                    {numberOfSeasons} Season{numberOfSeasons > 1 ? 's' : ''}
+                        {/*
+                            Hanya nilai yang datang dari TMDB. Durasi dan jumlah
+                            musim berasal dari respons rincian, jadi keduanya
+                            tetap. Lencana resolusi dibuang: berkas yang akan
+                            diputar belum dipilih saat panel ini terbuka, jadi
+                            resolusinya belum diketahui.
+                        */}
+                        <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                            {rating && (
+                                <span className="flex items-center gap-1.5 font-semibold text-[var(--cinema-accent)]">
+                                    <Star
+                                        className="h-3.5 w-3.5 fill-current"
+                                        aria-hidden="true"
+                                    />
+                                    {rating}
+                                    <span className="font-normal text-[var(--cinema-ink-faint)]">
+                                        dari 10 di TMDB
+                                    </span>
                                 </span>
                             )}
-                            <span className="rounded bg-zinc-700 px-2 py-0.5 text-xs font-semibold uppercase tracking-wider">
-                                HD
-                            </span>
+                            {year && (
+                                <span className="text-[var(--cinema-ink-soft)]">
+                                    {year}
+                                </span>
+                            )}
+                            {runtime && (
+                                <span className="text-[var(--cinema-ink-soft)]">
+                                    {runtime}
+                                </span>
+                            )}
+                            {numberOfSeasons && (
+                                <span className="text-[var(--cinema-ink-soft)]">
+                                    {numberOfSeasons} musim
+                                </span>
+                            )}
                         </div>
 
                         {/* Overview */}
@@ -362,7 +356,9 @@ export default function MovieModal({
                             <div>
                                 <span className="text-zinc-500">Genres: </span>
                                 <span className="text-zinc-200">
-                                    {details.genres.map((g) => g.name).join(', ')}
+                                    {details.genres
+                                        .map((g) => g.name)
+                                        .join(', ')}
                                 </span>
                             </div>
                         )}
@@ -370,7 +366,9 @@ export default function MovieModal({
                         {details?.production_companies &&
                             details.production_companies.length > 0 && (
                                 <div>
-                                    <span className="text-zinc-500">Studio: </span>
+                                    <span className="text-zinc-500">
+                                        Studio:{' '}
+                                    </span>
                                     <span className="text-zinc-200">
                                         {details.production_companies
                                             .slice(0, 2)
@@ -381,7 +379,9 @@ export default function MovieModal({
                             )}
 
                         <div>
-                            <span className="text-zinc-500">This movie is: </span>
+                            <span className="text-zinc-500">
+                                This movie is:{' '}
+                            </span>
                             <span className="text-zinc-200">
                                 Exciting, Suspenseful
                             </span>
@@ -389,10 +389,10 @@ export default function MovieModal({
 
                         <button
                             type="button"
-                            className="mt-4 text-zinc-300 underline underline-offset-4 hover:text-white"
+                            className="cinema-focus mt-4 text-sm font-medium text-zinc-300 underline underline-offset-4 hover:text-white"
                             onClick={handleMoreInfoPage}
                         >
-                            View Full Details →
+                            Lihat Rincian Lengkap
                         </button>
                     </div>
                 </div>
@@ -401,23 +401,28 @@ export default function MovieModal({
                 {mediaType === 'tv' && (
                     <div className="border-t border-zinc-800 p-6 md:p-10">
                         <div className="mb-6 flex items-center justify-between">
-                            <h3 className="text-xl font-bold md:text-2xl">Episodes</h3>
+                            <h3 className="text-xl font-bold text-white md:text-2xl">
+                                Episode
+                            </h3>
 
                             {/* Season Selector */}
                             {numberOfSeasons && numberOfSeasons > 1 && (
                                 <div className="relative">
                                     <button
                                         type="button"
-                                        className="flex items-center gap-2 rounded border border-zinc-600 bg-zinc-800 px-4 py-2 text-sm font-medium transition hover:border-zinc-400"
+                                        className="cinema-focus flex items-center gap-2 rounded border border-zinc-600 bg-zinc-800 px-4 py-2 text-sm font-medium transition hover:border-zinc-400"
                                         onClick={() =>
-                                            setShowSeasonDropdown(!showSeasonDropdown)
+                                            setShowSeasonDropdown(
+                                                !showSeasonDropdown,
+                                            )
                                         }
                                     >
-                                        Season {season}
+                                        Musim {season}
                                         <ChevronDown
                                             className={cn(
                                                 'h-4 w-4 transition-transform',
-                                                showSeasonDropdown && 'rotate-180',
+                                                showSeasonDropdown &&
+                                                    'rotate-180',
                                             )}
                                         />
                                     </button>
@@ -434,14 +439,16 @@ export default function MovieModal({
                                                     className={cn(
                                                         'w-full px-4 py-2 text-left text-sm hover:bg-zinc-800',
                                                         s === season &&
-                                                        'bg-zinc-800 font-semibold',
+                                                            'bg-zinc-800 font-semibold text-[#E50914]',
                                                     )}
                                                     onClick={() => {
                                                         setSeason(s);
-                                                        setShowSeasonDropdown(false);
+                                                        setShowSeasonDropdown(
+                                                            false,
+                                                        );
                                                     }}
                                                 >
-                                                    Season {s}
+                                                    Musim {s}
                                                 </button>
                                             ))}
                                         </div>
@@ -453,11 +460,11 @@ export default function MovieModal({
                         {seasonLoading ? (
                             <div className="flex items-center gap-3 text-zinc-400">
                                 <div className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-600 border-t-white" />
-                                Loading episodes...
+                                Memuat episode...
                             </div>
                         ) : seasonDetails?.episodes?.length ? (
                             <div className="space-y-4">
-                                {seasonDetails.episodes.slice(0, 10).map((ep, idx) => (
+                                {seasonDetails.episodes.map((ep, idx) => (
                                     <button
                                         key={ep.id}
                                         type="button"
@@ -481,7 +488,7 @@ export default function MovieModal({
                                                 />
                                             ) : (
                                                 <div className="flex h-full w-full items-center justify-center text-xs text-zinc-600">
-                                                    No image
+                                                    Tanpa gambar
                                                 </div>
                                             )}
                                             <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition group-hover:opacity-100">
@@ -495,7 +502,7 @@ export default function MovieModal({
                                         {/* Info */}
                                         <div className="flex-1 space-y-1">
                                             <div className="flex items-center justify-between">
-                                                <span className="font-medium">
+                                                <span className="font-medium text-white">
                                                     {ep.name}
                                                 </span>
                                                 {ep.runtime && (
@@ -505,25 +512,16 @@ export default function MovieModal({
                                                 )}
                                             </div>
                                             <p className="line-clamp-2 text-sm text-zinc-400">
-                                                {ep.overview || 'No description available.'}
+                                                {ep.overview ||
+                                                    'Sinopsis episode belum tersedia.'}
                                             </p>
                                         </div>
                                     </button>
                                 ))}
-
-                                {seasonDetails.episodes.length > 10 && (
-                                    <button
-                                        type="button"
-                                        className="w-full border-t border-zinc-800 pt-4 text-center text-sm text-zinc-400 hover:text-white"
-                                        onClick={handleMoreInfoPage}
-                                    >
-                                        View all {seasonDetails.episodes.length} episodes →
-                                    </button>
-                                )}
                             </div>
                         ) : (
                             <p className="text-zinc-400">
-                                No episodes available for this season.
+                                Tidak ada episode untuk musim ini.
                             </p>
                         )}
                     </div>
@@ -531,17 +529,17 @@ export default function MovieModal({
 
                 {/* More Like This Section */}
                 <div className="border-t border-zinc-800 p-6 md:p-10">
-                    <h3 className="mb-4 text-xl font-bold md:text-2xl">
-                        More Like This
+                    <h3 className="mb-4 text-xl font-bold text-white md:text-2xl">
+                        Judul Serupa
                     </h3>
                     <p className="text-sm text-zinc-400">
-                        Explore more titles by visiting the{' '}
+                        Jelajahi judul lainnya di{' '}
                         <button
                             type="button"
-                            className="text-zinc-300 underline underline-offset-2 hover:text-white"
+                            className="cinema-focus text-zinc-300 underline underline-offset-2 hover:text-white"
                             onClick={handleMoreInfoPage}
                         >
-                            full details page
+                            halaman rincian lengkap
                         </button>
                         .
                     </p>

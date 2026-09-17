@@ -2,6 +2,15 @@
 
 namespace App\Providers;
 
+use App\Contracts\SubtitleTranslator;
+use App\Services\Playback\ArchiveStreamResolver;
+use App\Services\Playback\LocalLibraryResolver;
+use App\Services\Playback\OpenMovieResolver;
+use App\Services\Playback\StreamResolverManager;
+use App\Services\Subtitle\LibreTranslateTranslator;
+use App\Services\Subtitle\NullSubtitleTranslator;
+use Illuminate\Support\Facades\URL;
+
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -15,7 +24,39 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->registerStreamResolvers();
+        $this->registerSubtitleTranslator();
+    }
+
+    /**
+     * Pilih mesin penerjemah takarir sesuai config/subtitles.php.
+     *
+     * Bila mesinnya tidak dikenal, jatuh ke NullSubtitleTranslator. Salah ketik
+     * di .env tidak boleh menjatuhkan seluruh halaman tonton.
+     */
+    protected function registerSubtitleTranslator(): void
+    {
+        $this->app->singleton(SubtitleTranslator::class, function ($app) {
+            return match (config('subtitles.translator', 'null')) {
+                'libretranslate' => $app->make(LibreTranslateTranslator::class),
+                default => $app->make(NullSubtitleTranslator::class),
+            };
+        });
+    }
+
+    /**
+     * Daftar asal tontonan, berurutan sesuai prioritas tampil di pemilih sumber.
+     *
+     * Semua asal di sini menyajikan berkas tanpa DRM, jadi pemutar internal
+     * dapat memakainya langsung tanpa iframe pihak ketiga.
+     */
+    protected function registerStreamResolvers(): void
+    {
+        $this->app->singleton(StreamResolverManager::class, fn ($app): StreamResolverManager => new StreamResolverManager([
+            $app->make(OpenMovieResolver::class),
+            $app->make(ArchiveStreamResolver::class),
+            $app->make(LocalLibraryResolver::class),
+        ]));
     }
 
     /**
@@ -24,6 +65,10 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+
+        if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+            URL::forceScheme('https');
+        }
     }
 
     protected function configureDefaults(): void
@@ -34,14 +79,15 @@ class AppServiceProvider extends ServiceProvider
             app()->isProduction(),
         );
 
-        Password::defaults(fn (): ?Password => app()->isProduction()
-            ? Password::min(12)
+        Password::defaults(
+            fn(): ?Password => app()->isProduction()
+                ? Password::min(12)
                 ->mixedCase()
                 ->letters()
                 ->numbers()
                 ->symbols()
                 ->uncompromised()
-            : null
+                : null
         );
     }
 }

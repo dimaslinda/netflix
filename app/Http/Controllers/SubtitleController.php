@@ -1,95 +1,124 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Services\SubDLService;
+use App\Services\Subtitle\SubtitleLibrary;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
-class SubtitleController extends Controller
+/**
+ * Pencarian dan penyajian takarir untuk pemutar.
+ *
+ * Seluruh logika ada di SubtitleLibrary. Controller hanya memvalidasi masukan
+ * dan membentuk respons.
+ */
+final class SubtitleController extends Controller
 {
     public function __construct(
-        protected SubDLService $subtitles
-    ) {
-    }
+        private readonly SubtitleLibrary $library,
+        private readonly SubDLService $subdl,
+    ) {}
 
     /**
-     * Search subtitles by TMDB ID
+     * Cari takarir untuk satu judul atau episode.
+     *
+     * Bila bahasa sasaran tidak ada di penyedia mana pun, hasilnya berisi
+     * takarir bahasa cadangan yang ditandai needs_translation.
      */
     public function searchByTmdb(Request $request): JsonResponse
     {
-        $request->validate([
-            'tmdb_id' => 'required|string',
-            'type' => 'required|in:movie,tv',
-            'season' => 'nullable|integer',
-            'episode' => 'nullable|integer',
-            'language' => 'nullable|string|max:5',
+        $validated = $request->validate([
+            'tmdb_id' => ['required', 'string', 'max:32'],
+            'type' => ['required', 'in:movie,tv'],
+            'season' => ['nullable', 'integer', 'min:0'],
+            'episode' => ['nullable', 'integer', 'min:0'],
+            'title' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $results = $this->subtitles->searchByTmdbId(
-            $request->tmdb_id,
-            $request->type,
-            $request->season,
-            $request->episode,
-            $request->language
+        $result = $this->library->search(
+            $validated['tmdb_id'],
+            $validated['type'],
+            isset($validated['season']) ? (int) $validated['season'] : null,
+            isset($validated['episode']) ? (int) $validated['episode'] : null,
+            $validated['title'] ?? null,
         );
 
         return response()->json([
             'success' => true,
-            'data' => $results,
+            'data' => $result['tracks'],
+            'meta' => [
+                'target_language' => $result['target_language'],
+                'translator' => $result['translator'],
+                'translator_available' => $result['translator_available'],
+            ],
         ]);
     }
 
     /**
-     * Search subtitles by query text
+     * Cari takarir hanya berbekal judul.
+     *
+     * Jaminannya sama dengan pencarian lewat id TMDB: bahasa sasaran dulu, dan
+     * bila nihil, bahasa cadangan yang ditandai untuk diterjemahkan. Jalur ini
+     * yang dipakai film katalog terbuka, yang diputar tanpa id TMDB.
      */
     public function searchByQuery(Request $request): JsonResponse
     {
-        $request->validate([
-            'query' => 'required|string|max:255',
-            'language' => 'nullable|string|max:5',
-            'year' => 'nullable|integer|min:1900|max:2100',
+        $validated = $request->validate([
+            'query' => ['required', 'string', 'max:255'],
+            'year' => ['nullable', 'integer', 'min:1900', 'max:2100'],
         ]);
 
-        $results = $this->subtitles->searchByQuery(
-            $request->query('query'),
-            $request->query('language'),
-            $request->query('year')
+        $result = $this->library->searchByTitle(
+            $validated['query'],
+            isset($validated['year']) ? (int) $validated['year'] : null,
         );
 
         return response()->json([
             'success' => true,
-            'data' => $results,
+            'data' => $result['tracks'],
+            'meta' => [
+                'target_language' => $result['target_language'],
+                'translator' => $result['translator'],
+                'translator_available' => $result['translator_available'],
+            ],
         ]);
     }
 
     /**
-     * Get download link for a subtitle file
+     * Sajikan isi takarir sebagai VTT untuk elemen <track>.
      */
-    public function download(Request $request): JsonResponse
+    public function stream(Request $request): Response
     {
-        $request->validate([
-            'url' => 'required|string',
+        $validated = $request->validate([
+            'url' => ['required', 'string', 'max:2048'],
+            'from' => ['nullable', 'string', 'max:5'],
+            'translate' => ['nullable', 'boolean'],
         ]);
 
-        $result = $this->subtitles->getDownloadLink($request->url);
+        $content = $this->library->content(
+            $validated['url'],
+            $validated['from'] ?? null,
+            $request->boolean('translate'),
+        );
 
-        return response()->json([
-            'success' => true,
-            'data' => $result,
-        ]);
+        if ($content === null) {
+            return response('Takarir tidak ditemukan atau kosong.', 404);
+        }
+
+        return response($content)
+            ->header('Content-Type', 'text/vtt; charset=UTF-8')
+            ->header('Cache-Control', 'private, max-age=86400');
     }
 
-    /**
-     * Get available languages
-     */
     public function languages(): JsonResponse
     {
-        $languages = $this->subtitles->getAvailableLanguages();
-
         return response()->json([
             'success' => true,
-            'data' => $languages,
+            'data' => $this->subdl->getAvailableLanguages(),
         ]);
     }
 }

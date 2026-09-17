@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { cn } from '@/lib/utils';
 import { Movie } from '@/types/tmdb';
 
 import MovieCard from './MovieCard';
@@ -8,115 +9,188 @@ import MovieCard from './MovieCard';
 interface MovieRowProps {
     title: string;
     movies: Movie[];
-    onSelect?: (movie: Movie) => void;
+    onSelect: (movie: Movie) => void;
     variant?: 'default' | 'large' | 'poster';
-    hideTitle?: boolean;
+    /** Teks kecil di bawah judul baris, untuk menerangkan asal isinya. */
+    note?: string;
+    onHover?: (movie: Movie, rect: DOMRect) => void;
 }
+
+/** Seberapa jauh satu tekan panah menggeser baris, relatif terhadap lebar
+ *  yang terlihat. Disisakan sedikit agar kartu tepi tetap terlihat separuh
+ *  dan pemirsa tahu barisnya masih berlanjut. */
+const SCROLL_FRACTION = 0.85;
 
 export default function MovieRow({
     title,
     movies,
     onSelect,
     variant = 'default',
-    hideTitle = false,
+    note,
+    onHover,
 }: MovieRowProps) {
-    const rowRef = useRef<HTMLDivElement>(null);
-    const [showLeftArrow, setShowLeftArrow] = useState(false);
-    const [showRightArrow, setShowRightArrow] = useState(true);
+    const railRef = useRef<HTMLDivElement>(null);
+    const [canScrollLeft, setCanScrollLeft] = useState(false);
+    const [canScrollRight, setCanScrollRight] = useState(false);
 
-    const handleClick = (direction: 'left' | 'right') => {
-        if (rowRef.current) {
-            const { scrollLeft, clientWidth } = rowRef.current;
-            const scrollTo =
+    const measure = useCallback(() => {
+        const rail = railRef.current;
+
+        if (!rail) {
+            return;
+        }
+
+        setCanScrollLeft(rail.scrollLeft > 8);
+        setCanScrollRight(
+            rail.scrollLeft < rail.scrollWidth - rail.clientWidth - 8,
+        );
+    }, []);
+
+    // Diukur juga saat pasang dan saat ukuran jendela berubah. Tanpa ini, panah
+    // kanan tetap tampil pada baris yang isinya muat seluruhnya di layar lebar.
+    useEffect(() => {
+        measure();
+
+        const rail = railRef.current;
+
+        if (!rail || typeof ResizeObserver === 'undefined') {
+            return;
+        }
+
+        const observer = new ResizeObserver(measure);
+        observer.observe(rail);
+
+        return () => observer.disconnect();
+    }, [measure, movies.length]);
+
+    const scrollBy = useCallback((direction: 'left' | 'right') => {
+        const rail = railRef.current;
+
+        if (!rail) {
+            return;
+        }
+
+        const step = rail.clientWidth * SCROLL_FRACTION;
+
+        rail.scrollTo({
+            left:
                 direction === 'left'
-                    ? scrollLeft - clientWidth * 0.85
-                    : scrollLeft + clientWidth * 0.85;
+                    ? rail.scrollLeft - step
+                    : rail.scrollLeft + step,
+            behavior: 'smooth',
+        });
+    }, []);
 
-            rowRef.current.scrollTo({ left: scrollTo, behavior: 'smooth' });
+    if (movies.length === 0) {
+        return null;
+    }
 
-            // Update arrow visibility after scroll
-            setTimeout(() => {
-                if (rowRef.current) {
-                    setShowLeftArrow(rowRef.current.scrollLeft > 10);
-                    setShowRightArrow(
-                        rowRef.current.scrollLeft <
-                        rowRef.current.scrollWidth - rowRef.current.clientWidth - 10
-                    );
-                }
-            }, 400);
-        }
-    };
-
-    const handleScroll = () => {
-        if (rowRef.current) {
-            setShowLeftArrow(rowRef.current.scrollLeft > 10);
-            setShowRightArrow(
-                rowRef.current.scrollLeft <
-                rowRef.current.scrollWidth - rowRef.current.clientWidth - 10
-            );
-        }
-    };
-
-    const cardSize =
+    const cardWidth =
         variant === 'poster'
-            ? 'poster'
+            ? 'w-[132px] sm:w-[150px] lg:w-[168px]'
             : variant === 'large'
-                ? 'large'
-                : 'default';
+              ? 'w-[300px] sm:w-[360px] lg:w-[420px]'
+              : 'w-[208px] sm:w-[236px] lg:w-[268px]';
 
     return (
-        <div className="group/row relative space-y-1 md:space-y-2">
-            {!hideTitle && (
-                <div className="flex items-center gap-2 px-4 md:px-12 lg:px-16">
-                    <h2 className="cursor-pointer text-base font-bold text-[#e5e5e5] transition duration-200 hover:text-white md:text-xl lg:text-2xl">
-                        {title}
-                    </h2>
-                    <span className="flex cursor-pointer items-center gap-1 text-sm font-semibold text-[#54b9c5] opacity-0 transition-opacity duration-300 group-hover/row:opacity-100">
-                        Explore All
-                        <ChevronRight className="h-4 w-4" />
-                    </span>
-                </div>
-            )}
-
-            <div className="relative" style={{ overflow: 'visible' }}>
-                {/* Left Arrow - Sleek design */}
-                <button
-                    type="button"
-                    className={`absolute top-0 bottom-0 left-0 z-40 flex w-12 items-center justify-center bg-gradient-to-r from-black/80 to-transparent opacity-0 transition-all duration-300 group-hover/row:opacity-100 md:w-16 ${!showLeftArrow ? 'pointer-events-none !opacity-0' : ''}`}
-                    onClick={() => handleClick('left')}
+        <section className="group/row relative" aria-labelledby={rowId(title)}>
+            <header className="px-4 md:px-12 lg:px-16">
+                <h2
+                    id={rowId(title)}
+                    className="text-[15px] font-bold tracking-tight text-[var(--cinema-ink)] md:text-lg"
                 >
-                    <ChevronLeft className="h-8 w-8 text-white drop-shadow-lg transition-transform duration-200 hover:scale-125 md:h-10 md:w-10" />
-                </button>
+                    {title}
+                </h2>
+                {note && (
+                    <p className="mt-0.5 text-[11px] text-[var(--cinema-ink-faint)]">
+                        {note}
+                    </p>
+                )}
+            </header>
 
-                {/* Movie Cards Container */}
+            <div className="relative mt-2.5">
+                <RailButton
+                    direction="left"
+                    isVisible={canScrollLeft}
+                    onClick={() => scrollBy('left')}
+                />
+                <RailButton
+                    direction="right"
+                    isVisible={canScrollRight}
+                    onClick={() => scrollBy('right')}
+                />
+
+                {/*
+                    tabIndex membuat rel ini bisa dijangkau Tab dan digeser
+                    dengan tombol panah, jadi baris tetap terpakai penuh tanpa
+                    tetikus. Kartu di dalamnya sudah berupa tombol sungguhan.
+                */}
                 <div
-                    ref={rowRef}
-                    className="scrollbar-hide flex gap-2 scroll-smooth px-4 py-20 md:gap-3 md:px-12 lg:px-16 -my-16"
-                    style={{
-                        overflowX: 'auto',
-                        overflowY: 'visible',
-                    }}
-                    onScroll={handleScroll}
+                    ref={railRef}
+                    onScroll={measure}
+                    tabIndex={0}
+                    role="group"
+                    aria-label={`Geser baris ${title}`}
+                    className="cinema-focus scrollbar-hide flex gap-2 overflow-x-auto scroll-smooth px-4 py-3 md:gap-2.5 md:px-12 lg:px-16"
                 >
                     {movies.map((movie) => (
-                        <MovieCard
-                            key={movie.id}
-                            movie={movie}
-                            onSelect={onSelect}
-                            size={cardSize}
-                        />
+                        <div
+                            key={`${movie.id}-${movie.media_type ?? 'movie'}`}
+                            className={cn('flex-none', cardWidth)}
+                        >
+                            <MovieCard
+                                movie={movie}
+                                onSelect={onSelect}
+                                onHover={onHover}
+                                size={variant}
+                            />
+                        </div>
                     ))}
                 </div>
-
-                {/* Right Arrow - Sleek design */}
-                <button
-                    type="button"
-                    className={`absolute top-0 right-0 bottom-0 z-40 flex w-12 items-center justify-center bg-gradient-to-l from-black/80 to-transparent opacity-0 transition-all duration-300 group-hover/row:opacity-100 md:w-16 ${!showRightArrow ? 'pointer-events-none !opacity-0' : ''}`}
-                    onClick={() => handleClick('right')}
-                >
-                    <ChevronRight className="h-8 w-8 text-white drop-shadow-lg transition-transform duration-200 hover:scale-125 md:h-10 md:w-10" />
-                </button>
             </div>
-        </div>
+        </section>
     );
+}
+
+function RailButton({
+    direction,
+    isVisible,
+    onClick,
+}: {
+    direction: 'left' | 'right';
+    isVisible: boolean;
+    onClick: () => void;
+}) {
+    const Icon = direction === 'left' ? ChevronLeft : ChevronRight;
+
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-label={
+                direction === 'left' ? 'Geser ke kiri' : 'Geser ke kanan'
+            }
+            tabIndex={isVisible ? 0 : -1}
+            aria-hidden={!isVisible}
+            className={cn(
+                'cinema-focus absolute top-0 bottom-0 z-30 hidden w-12 items-center justify-center bg-gradient-to-r from-black/85 to-transparent transition-opacity duration-200 md:flex',
+                direction === 'left'
+                    ? 'left-0 bg-gradient-to-r'
+                    : 'right-0 bg-gradient-to-l',
+                isVisible
+                    ? 'opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100'
+                    : 'pointer-events-none opacity-0',
+            )}
+        >
+            <Icon
+                className="h-8 w-8 text-[var(--cinema-ink)] transition-transform duration-200 hover:scale-110"
+                aria-hidden="true"
+            />
+        </button>
+    );
+}
+
+/** Judul baris dipakai sebagai label aksesibilitas, jadi perlu id yang stabil. */
+function rowId(title: string): string {
+    return `row-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 }

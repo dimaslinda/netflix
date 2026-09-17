@@ -1,7 +1,9 @@
-import { Head } from '@inertiajs/react';
-import { ArrowLeft, Play } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Head, router } from '@inertiajs/react';
+import { ArrowLeft, Loader2, Play, Star } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
+import Navbar from '@/components/netflix/Navbar';
+import { cn } from '@/lib/utils';
 import {
     type TmdbDetails,
     type TmdbSeasonDetails,
@@ -13,316 +15,371 @@ interface MovieDetailProps {
     id: string;
 }
 
+type LoadStatus = 'loading' | 'ready' | 'error';
+
+/**
+ * Halaman rincian satu judul.
+ *
+ * Irama halaman ini sengaja berbeda dari beranda: satu panel pembuka besar,
+ * lalu dua kolom teks. Tidak ada baris carousel sama sekali, karena pemirsa
+ * yang sampai di sini sudah memilih dan tidak perlu ditawari judul lain.
+ */
 export default function MovieDetail({ type, id }: MovieDetailProps) {
+    const [status, setStatus] = useState<LoadStatus>('loading');
     const [details, setDetails] = useState<TmdbDetails | null>(null);
     const [videos, setVideos] = useState<TmdbVideosApiResponse | null>(null);
-    const [loading, setLoading] = useState(true);
+
     const [season, setSeason] = useState(1);
-    const [episode, setEpisode] = useState(1);
-    const [seasonDetails, setSeasonDetails] =
-        useState<TmdbSeasonDetails | null>(null);
-    const [seasonLoading, setSeasonLoading] = useState(false);
+    const [loadedSeason, setLoadedSeason] = useState<{
+        season: number;
+        details: TmdbSeasonDetails | null;
+    } | null>(null);
+
+    // Status memuat diturunkan dari perbandingan nomor musim, bukan disetel di
+    // dalam efek. Respons musim lama juga tidak bisa menimpa musim yang baru.
+    const seasonDetails =
+        loadedSeason?.season === season ? loadedSeason.details : null;
+    const isSeasonLoading = type === 'tv' && loadedSeason?.season !== season;
 
     useEffect(() => {
-        let cancelled = false;
+        const controller = new AbortController();
 
         Promise.all([
-            fetch(`/api/tmdb/${type}/${id}`).then((r) => r.json()),
-            fetch(`/api/tmdb/${type}/${id}/videos`).then((r) => r.json()),
+            fetch(`/api/tmdb/${type}/${id}`, {
+                signal: controller.signal,
+            }).then((response) => response.json()),
+            fetch(`/api/tmdb/${type}/${id}/videos`, {
+                signal: controller.signal,
+            }).then((response) => response.json()),
         ])
-            .then(([detailJson, videosJson]) => {
-                if (cancelled) return;
+            .then(([detailJson, videoJson]) => {
                 setDetails(detailJson as TmdbDetails);
-                setVideos(videosJson as TmdbVideosApiResponse);
+                setVideos(videoJson as TmdbVideosApiResponse);
+                setStatus('ready');
             })
             .catch(() => {
-                if (cancelled) return;
-                setDetails(null);
-                setVideos(null);
-            })
-            .finally(() => {
-                if (cancelled) return;
-                setLoading(false);
+                if (!controller.signal.aborted) {
+                    setStatus('error');
+                }
             });
 
-        return () => {
-            cancelled = true;
-        };
+        return () => controller.abort();
     }, [type, id]);
 
     useEffect(() => {
-        if (type !== 'tv') return;
-        if (!id) return;
-        if (!season) return;
+        if (type !== 'tv') {
+            return;
+        }
 
         const controller = new AbortController();
 
-        Promise.resolve()
-            .then(() => {
-                if (!controller.signal.aborted) {
-                    setSeasonLoading(true);
-                }
-            })
-            .then(() =>
-                fetch(`/api/tmdb/tv/${id}/season/${season}`, {
-                    signal: controller.signal,
-                }),
+        fetch(`/api/tmdb/tv/${id}/season/${season}`, {
+            signal: controller.signal,
+        })
+            .then((response) => response.json())
+            .then((json: TmdbSeasonDetails) =>
+                setLoadedSeason({ season, details: json }),
             )
-            .then((r) => r.json())
-            .then((json: TmdbSeasonDetails) => {
+            .catch(() => {
                 if (!controller.signal.aborted) {
-                    setSeasonDetails(json);
-                }
-            })
-            .catch(() => {})
-            .finally(() => {
-                if (!controller.signal.aborted) {
-                    setSeasonLoading(false);
+                    // Musim yang gagal dimuat tetap dicatat sebagai selesai,
+                    // supaya daftar tidak berputar tanpa akhir.
+                    setLoadedSeason({ season, details: null });
                 }
             });
 
         return () => controller.abort();
     }, [type, id, season]);
 
-    const title = useMemo(() => {
-        if (!details) return 'Detail';
-        return (
-            details.title || details.name || details.original_name || 'Detail'
+    const title =
+        details?.title ?? details?.name ?? details?.original_name ?? '';
+    const year = (details?.release_date ?? details?.first_air_date)?.slice(
+        0,
+        4,
+    );
+    const rating =
+        typeof details?.vote_average === 'number' && details.vote_average > 0
+            ? details.vote_average.toFixed(1)
+            : null;
+
+    const artPath = details?.backdrop_path ?? details?.poster_path;
+    const artUrl = artPath
+        ? `https://image.tmdb.org/t/p/original${artPath}`
+        : null;
+
+    const trailerEmbed = videos?.best?.embed_url ?? null;
+
+    const play = () =>
+        router.visit(
+            type === 'tv'
+                ? `/watch/tv/${id}?season=${season}&episode=1`
+                : `/watch/movie/${id}`,
         );
-    }, [details]);
 
-    const year = useMemo(() => {
-        if (!details) return '';
-        const date = details.release_date || details.first_air_date || '';
-        return date ? date.slice(0, 4) : '';
-    }, [details]);
+    if (status === 'loading') {
+        return (
+            <PageShell title="Memuat">
+                <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-[var(--cinema-ink-faint)]">
+                    <Loader2
+                        className="h-8 w-8 animate-spin"
+                        aria-hidden="true"
+                    />
+                    <p className="text-sm">Memuat rincian judul...</p>
+                </div>
+            </PageShell>
+        );
+    }
 
-    const backdropPath = details?.backdrop_path || details?.poster_path || null;
-    const imageUrl = backdropPath
-        ? `https://image.tmdb.org/t/p/original${backdropPath}`
-        : 'https://placehold.co/1920x1080/1a1a1a/ffffff?text=No+Image';
+    if (status === 'error' || !details) {
+        return (
+            <PageShell title="Gagal memuat">
+                <div className="mx-auto mt-24 max-w-lg rounded-[var(--cinema-radius-panel)] border border-[var(--cinema-line)] bg-[var(--cinema-raised)] px-8 py-14 text-center">
+                    <p className="font-semibold">Rincian tidak terbaca</p>
+                    <p className="mt-2 text-sm leading-relaxed text-[var(--cinema-ink-soft)]">
+                        TMDB tidak merespons, atau judul ini tidak ada di sana.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => window.location.reload()}
+                        className="cinema-focus mt-6 inline-flex min-h-11 items-center rounded bg-[var(--cinema-accent)] px-5 text-sm font-bold text-[var(--cinema-accent-ink)] transition hover:brightness-110"
+                    >
+                        Muat ulang
+                    </button>
+                </div>
+            </PageShell>
+        );
+    }
 
-    const trailerEmbed = videos?.best?.embed_url || null;
-
-    const handleBack = () => {
-        window.history.back();
-    };
-
-    const handlePlay = () => {
-        const baseType = type === 'tv' ? 'tv' : 'movie';
-        const url =
-            baseType === 'tv'
-                ? `/watch/tv/${id}?season=${season}&episode=${episode}`
-                : `/watch/movie/${id}`;
-        window.location.href = url;
-    };
-
-    const genres = details?.genres || [];
-    const durationMinutes = details?.runtime || null;
+    const genres = details.genres ?? [];
 
     return (
-        <div className="min-h-screen bg-[#141414] text-white">
-            <Head title={title} />
+        <PageShell title={title}>
+            <div className="relative h-[58vh] min-h-[420px] w-full bg-[var(--cinema-raised)]">
+                {trailerEmbed ? (
+                    <iframe
+                        src={trailerEmbed}
+                        title={`Cuplikan ${title}`}
+                        allow="autoplay; encrypted-media; fullscreen"
+                        allowFullScreen
+                        className="h-full w-full"
+                    />
+                ) : artUrl ? (
+                    <img
+                        src={artUrl}
+                        alt=""
+                        className="h-full w-full object-cover"
+                    />
+                ) : null}
 
-            <div className="relative">
-                <div className="relative h-[60vh] w-full bg-black md:h-[70vh]">
-                    {trailerEmbed ? (
-                        <iframe
-                            src={trailerEmbed}
-                            className="h-full w-full"
-                            title={title}
-                            allow="autoplay; encrypted-media; fullscreen"
-                            allowFullScreen
-                        />
-                    ) : (
-                        <img
-                            src={imageUrl}
-                            alt={title}
-                            className="h-full w-full object-cover"
-                        />
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#141414] via-[#141414]/40 to-transparent" />
-                    <div className="absolute inset-0 bg-gradient-to-r from-[#141414] via-transparent to-transparent" />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--cinema-base)] via-[var(--cinema-base)]/50 to-transparent" />
+
+                <button
+                    type="button"
+                    onClick={() => window.history.back()}
+                    aria-label="Kembali"
+                    className="cinema-focus absolute top-20 left-4 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-[var(--cinema-ink)] transition hover:bg-black/80 md:left-12"
+                >
+                    <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+                </button>
+
+                <div className="absolute inset-x-0 bottom-0 px-4 pb-8 md:px-12 md:pb-12 lg:px-16">
+                    <h1 className="max-w-3xl text-3xl font-black tracking-tight md:text-5xl">
+                        {title}
+                    </h1>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-[var(--cinema-ink-soft)]">
+                        {rating && (
+                            <span className="flex items-center gap-1.5 text-[var(--cinema-accent)]">
+                                <Star
+                                    className="h-3.5 w-3.5 fill-current"
+                                    aria-hidden="true"
+                                />
+                                {rating}
+                                <span className="text-[var(--cinema-ink-faint)]">
+                                    dari 10 di TMDB
+                                </span>
+                            </span>
+                        )}
+                        {year && <span>{year}</span>}
+                        {details.runtime && (
+                            <span>{details.runtime} menit</span>
+                        )}
+                        <span>{type === 'tv' ? 'Serial' : 'Film'}</span>
+                    </div>
 
                     <button
                         type="button"
-                        onClick={handleBack}
-                        className="absolute top-4 left-4 z-20 rounded-full bg-black/60 p-2 text-white transition hover:bg-black/80 md:top-8 md:left-8"
+                        onClick={play}
+                        className="cinema-focus mt-5 flex min-h-11 items-center gap-2 rounded bg-[var(--cinema-ink)] px-6 text-[15px] font-bold text-[var(--cinema-base)] transition hover:bg-white active:scale-[0.98]"
                     >
-                        <ArrowLeft className="h-5 w-5 md:h-6 md:w-6" />
+                        <Play
+                            className="h-5 w-5"
+                            fill="currentColor"
+                            aria-hidden="true"
+                        />
+                        Putar
                     </button>
-
-                    <div className="absolute right-0 bottom-0 left-0 px-4 pb-8 md:px-16 md:pb-12">
-                        <h1 className="text-2xl font-bold md:text-4xl lg:text-6xl">
-                            {title}
-                        </h1>
-                        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-zinc-200 md:text-base">
-                            {year ? <span>{year}</span> : null}
-                            {durationMinutes ? (
-                                <span>{durationMinutes} min</span>
-                            ) : null}
-                            <span className="rounded border border-zinc-500 px-2 py-0.5 text-xs tracking-wide uppercase">
-                                {type === 'tv' ? 'TV Series' : 'Movie'}
-                            </span>
-                        </div>
-
-                        <div className="mt-4 flex flex-wrap items-center gap-3">
-                            <button
-                                type="button"
-                                className="flex items-center gap-x-2 rounded bg-white px-5 py-2 text-sm font-bold text-black transition hover:bg-[#e6e6e6] md:px-8 md:py-2.5 md:text-base"
-                                onClick={handlePlay}
-                            >
-                                <Play className="h-4 w-4 text-black" />
-                                Play
-                            </button>
-                        </div>
-                    </div>
                 </div>
             </div>
 
-            <main className="px-4 py-8 md:px-16 md:py-12">
-                <div className="grid gap-8 md:grid-cols-[2fr,1fr]">
-                    <section className="space-y-8">
-                        <div>
-                            <h2 className="mb-3 text-lg font-semibold md:text-xl">
-                                About
-                            </h2>
-                            <p className="text-sm leading-relaxed text-zinc-200 md:text-base">
-                                {!loading && details?.overview
-                                    ? details.overview
-                                    : loading
-                                      ? 'Loading...'
-                                      : 'No description available.'}
-                            </p>
-                        </div>
-
-                        {type === 'tv' && seasonDetails ? (
-                            <div>
-                                <div className="mb-3 flex items-center justify-between">
-                                    <h2 className="text-lg font-semibold md:text-xl">
-                                        Episodes
-                                    </h2>
-                                    <select
-                                        className="rounded bg-zinc-800 px-3 py-1 text-sm text-white ring-0 outline-none"
-                                        value={season}
-                                        onChange={(e) => {
-                                            const next = Number(e.target.value);
-                                            setSeason(
-                                                Number.isFinite(next) &&
-                                                    next > 0
-                                                    ? next
-                                                    : 1,
-                                            );
-                                            setEpisode(1);
-                                        }}
-                                    >
-                                        {(details?.seasons || []).map((s) => (
-                                            <option
-                                                key={s.id}
-                                                value={s.season_number}
-                                            >
-                                                Season {s.season_number}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {seasonLoading ? (
-                                    <p className="text-sm text-zinc-400">
-                                        Loading episodes...
-                                    </p>
-                                ) : (
-                                    <div className="space-y-3">
-                                        {seasonDetails.episodes.map((ep) => (
-                                            <button
-                                                key={ep.id}
-                                                type="button"
-                                                className="flex w-full items-start gap-3 rounded bg-zinc-800/60 p-3 text-left transition hover:bg-zinc-700/80"
-                                                onClick={() => {
-                                                    setSeason(ep.season_number);
-                                                    setEpisode(
-                                                        ep.episode_number,
-                                                    );
-                                                    window.location.href = `/watch/tv/${id}?season=${ep.season_number}&episode=${ep.episode_number}`;
-                                                }}
-                                            >
-                                                <div className="flex h-20 w-32 flex-none items-center justify-center overflow-hidden rounded bg-zinc-900">
-                                                    {ep.still_path ? (
-                                                        <img
-                                                            src={`https://image.tmdb.org/t/p/w300${ep.still_path}`}
-                                                            alt={ep.name}
-                                                            className="h-full w-full object-cover"
-                                                        />
-                                                    ) : (
-                                                        <span className="text-xs text-zinc-500">
-                                                            No image
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="flex-1 space-y-1">
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="text-sm font-semibold">
-                                                            {ep.episode_number}.{' '}
-                                                            {ep.name}
-                                                        </span>
-                                                    </div>
-                                                    <p className="line-clamp-2 text-xs text-zinc-300">
-                                                        {ep.overview ||
-                                                            'No description.'}
-                                                    </p>
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        ) : null}
+            <main className="grid gap-10 px-4 py-12 md:grid-cols-[2fr_1fr] md:px-12 lg:px-16">
+                <div className="space-y-10">
+                    <section>
+                        <h2 className="text-lg font-bold">Sinopsis</h2>
+                        <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-[var(--cinema-ink-soft)]">
+                            {details.overview ??
+                                'Sinopsis belum tersedia di TMDB.'}
+                        </p>
                     </section>
 
-                    <aside className="space-y-4 text-sm text-zinc-200">
-                        {genres.length > 0 ? (
-                            <div>
-                                <h3 className="mb-2 text-sm font-semibold tracking-wide text-zinc-400 uppercase">
-                                    Genres
-                                </h3>
-                                <div className="flex flex-wrap gap-2">
-                                    {genres.map((genre) => (
-                                        <span
-                                            key={genre.id}
-                                            className="rounded-full bg-zinc-800 px-3 py-1 text-xs"
-                                        >
-                                            {genre.name}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        ) : null}
+                    {type === 'tv' && (
+                        <section>
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <h2 className="text-lg font-bold">Episode</h2>
 
-                        {type === 'tv' && details?.seasons?.length ? (
-                            <div>
-                                <h3 className="mb-2 text-sm font-semibold tracking-wide text-zinc-400 uppercase">
-                                    Seasons
-                                </h3>
-                                <ul className="space-y-1 text-xs md:text-sm">
-                                    {details.seasons.map((s) => (
-                                        <li
-                                            key={s.id}
-                                            className="flex items-center justify-between rounded bg-zinc-800/60 px-3 py-2"
-                                        >
-                                            <span>
-                                                Season {s.season_number}
-                                            </span>
-                                            <span className="text-zinc-400">
-                                                {s.episode_count} episodes
-                                            </span>
+                                <label className="flex items-center gap-2 text-sm">
+                                    <span className="text-[var(--cinema-ink-faint)]">
+                                        Musim
+                                    </span>
+                                    <select
+                                        value={season}
+                                        onChange={(event) =>
+                                            setSeason(
+                                                Number(event.target.value),
+                                            )
+                                        }
+                                        className="cinema-focus min-h-11 rounded bg-[var(--cinema-raised)] px-3 text-sm font-semibold text-[var(--cinema-ink)]"
+                                    >
+                                        {(details.seasons ?? []).map(
+                                            (entry) => (
+                                                <option
+                                                    key={entry.id}
+                                                    value={entry.season_number}
+                                                >
+                                                    Musim {entry.season_number}
+                                                </option>
+                                            ),
+                                        )}
+                                    </select>
+                                </label>
+                            </div>
+
+                            {isSeasonLoading ? (
+                                <p className="mt-6 flex items-center gap-2 text-sm text-[var(--cinema-ink-faint)]">
+                                    <Loader2
+                                        className="h-4 w-4 animate-spin"
+                                        aria-hidden="true"
+                                    />
+                                    Memuat daftar episode...
+                                </p>
+                            ) : (seasonDetails?.episodes?.length ?? 0) === 0 ? (
+                                <p className="mt-6 text-sm text-[var(--cinema-ink-faint)]">
+                                    Daftar episode musim ini belum ada di TMDB.
+                                </p>
+                            ) : (
+                                <ul className="mt-5 space-y-2.5">
+                                    {seasonDetails?.episodes.map((episode) => (
+                                        <li key={episode.id}>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    router.visit(
+                                                        `/watch/tv/${id}?season=${episode.season_number}&episode=${episode.episode_number}`,
+                                                    )
+                                                }
+                                                className="cinema-focus flex w-full gap-4 rounded-[var(--cinema-radius-panel)] bg-[var(--cinema-raised)] p-3 text-left transition hover:bg-[var(--cinema-overlay)]"
+                                            >
+                                                <span className="aspect-video w-32 flex-none overflow-hidden rounded bg-[var(--cinema-overlay)]">
+                                                    {episode.still_path && (
+                                                        <img
+                                                            src={`https://image.tmdb.org/t/p/w300${episode.still_path}`}
+                                                            alt=""
+                                                            loading="lazy"
+                                                            className="h-full w-full object-cover"
+                                                        />
+                                                    )}
+                                                </span>
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block text-sm font-semibold">
+                                                        {episode.episode_number}
+                                                        . {episode.name}
+                                                    </span>
+                                                    {episode.overview && (
+                                                        <span className="mt-1 line-clamp-2 block text-xs leading-relaxed text-[var(--cinema-ink-faint)]">
+                                                            {episode.overview}
+                                                        </span>
+                                                    )}
+                                                </span>
+                                            </button>
                                         </li>
                                     ))}
                                 </ul>
-                            </div>
-                        ) : null}
-                    </aside>
+                            )}
+                        </section>
+                    )}
                 </div>
+
+                <aside className="space-y-8">
+                    {genres.length > 0 && (
+                        <section>
+                            <h2 className="text-[11px] font-bold tracking-widest text-[var(--cinema-ink-faint)] uppercase">
+                                Genre
+                            </h2>
+                            <ul className="mt-3 flex flex-wrap gap-2">
+                                {genres.map((genre) => (
+                                    <li
+                                        key={genre.id}
+                                        className="rounded-full bg-[var(--cinema-raised)] px-3 py-1 text-xs text-[var(--cinema-ink-soft)]"
+                                    >
+                                        {genre.name}
+                                    </li>
+                                ))}
+                            </ul>
+                        </section>
+                    )}
+
+                    {type === 'tv' && (details.seasons?.length ?? 0) > 0 && (
+                        <section>
+                            <h2 className="text-[11px] font-bold tracking-widest text-[var(--cinema-ink-faint)] uppercase">
+                                Musim
+                            </h2>
+                            <ul className="mt-3 space-y-1.5">
+                                {details.seasons?.map((entry) => (
+                                    <li
+                                        key={entry.id}
+                                        className={cn(
+                                            'flex items-center justify-between rounded bg-[var(--cinema-raised)] px-3 py-2 text-xs',
+                                            entry.season_number === season &&
+                                                'ring-1 ring-[var(--cinema-accent)]/50',
+                                        )}
+                                    >
+                                        <span>Musim {entry.season_number}</span>
+                                        <span className="text-[var(--cinema-ink-faint)]">
+                                            {entry.episode_count} episode
+                                        </span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </section>
+                    )}
+                </aside>
             </main>
+        </PageShell>
+    );
+}
+
+function PageShell({
+    title,
+    children,
+}: {
+    title: string;
+    children: React.ReactNode;
+}) {
+    return (
+        <div className="min-h-screen overflow-x-hidden bg-[var(--cinema-base)] text-[var(--cinema-ink)]">
+            <Head title={title} />
+            <Navbar />
+            {children}
         </div>
     );
 }

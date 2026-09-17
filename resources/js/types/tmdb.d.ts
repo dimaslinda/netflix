@@ -102,4 +102,9 @@ export interface TmdbDetails {
     tagline?: string;
     production_companies?: TmdbProductionCompany[];
     adult?: boolean;
+    external_ids?: {
+        mal_id?: number | string | null;
+        imdb_id?: string | null;
+        tvdb_id?: number | null;
+    };
 }

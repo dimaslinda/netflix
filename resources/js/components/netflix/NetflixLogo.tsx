@@ -4,7 +4,11 @@ interface NetflixLogoProps {
     height?: number;
 }
 
-export default function NetflixLogo({ className = '', width, height }: NetflixLogoProps) {
+export default function NetflixLogo({
+    className = '',
+    width,
+    height,
+}: NetflixLogoProps) {
     return (
         <svg
             viewBox="0 0 111 30"

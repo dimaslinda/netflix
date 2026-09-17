@@ -19,11 +19,11 @@ class SubDLService
     /**
      * Search for subtitles by TMDB ID
      */
-    public function searchByTmdbId(string $tmdbId, string $type = 'movie', ?int $season = null, ?int $episode = null, ?string $language = null): array
+    public function searchByTmdbId(string $tmdbId, string $type = 'movie', ?int $season = null, ?int $episode = null, ?string $language = null, ?string $title = null): array
     {
         $cacheKey = "subdl_tmdb_{$type}_{$tmdbId}_{$season}_{$episode}_{$language}";
 
-        return Cache::remember($cacheKey, 3600, function () use ($tmdbId, $type, $season, $episode, $language) {
+        $results = Cache::remember($cacheKey, 3600, function () use ($tmdbId, $type, $season, $episode, $language) {
             $params = [
                 'tmdb_id' => $tmdbId,
                 'type' => $type,
@@ -38,14 +38,21 @@ class SubDLService
             }
 
             if ($language) {
-                $params['languages'] = $language;
+                $params['languages'] = $this->getThreeLetterCode($language);
             }
 
-            // Add subs_per_page to get more results
             $params['subs_per_page'] = 30;
 
             return $this->search($params);
         });
+
+        // Fallback to search by title if no results and title provided
+        if (empty($results) && $title) {
+            Log::info("SubDL: No results for TMDB ID $tmdbId, trying title: $title");
+            return $this->searchByQuery($title, $language);
+        }
+
+        return $results;
     }
 
     /**
@@ -62,7 +69,7 @@ class SubDLService
             ];
 
             if ($language) {
-                $params['languages'] = $language;
+                $params['languages'] = $this->getThreeLetterCode($language);
             }
 
             return $this->search($params);
@@ -80,7 +87,7 @@ class SubDLService
         ];
 
         if ($language) {
-            $params['languages'] = $language;
+            $params['languages'] = $this->getThreeLetterCode($language);
         }
 
         if ($year) {
@@ -96,11 +103,72 @@ class SubDLService
     public function getDownloadLink(string $url): array
     {
         // SubDL provides direct download URLs
-        // The URL is already the download link from search results
         return [
             'link' => $url,
             'success' => true,
         ];
+    }
+
+    /**
+     * Download and convert subtitle to VTT
+     */
+    public function downloadAndConvert(string $url): ?string
+    {
+        try {
+            Log::info("SubDL: Downloading subtitle from $url");
+            $response = Http::timeout(20)->get($url);
+
+            if (!$response->successful()) {
+                Log::error("SubDL: Failed to download subtitle", ['status' => $response->status()]);
+                return null;
+            }
+
+            $content = $response->body();
+            $filename = parse_url($url, PHP_URL_PATH);
+
+            // Handle ZIP files
+            if (str_ends_with($url, '.zip') || str_contains($response->header('Content-Type'), 'zip')) {
+                $tempFile = tempnam(sys_get_temp_dir(), 'sub');
+                file_put_contents($tempFile, $content);
+
+                $zip = new \ZipArchive();
+                if ($zip->open($tempFile) === true) {
+                    // Find the first .srt or .vtt file
+                    for ($i = 0; $i < $zip->numFiles; $i++) {
+                        $name = $zip->getNameIndex($i);
+                        if (str_ends_with($name, '.srt') || str_ends_with($name, '.vtt')) {
+                            $content = $zip->getFromIndex($i);
+                            $filename = $name;
+                            break;
+                        }
+                    }
+                    $zip->close();
+                }
+                unlink($tempFile);
+            }
+
+            // Convert SRT to VTT if needed
+            if (str_ends_with(strtolower($filename), '.srt') || !str_contains($content, 'WEBVTT')) {
+                $content = $this->srtToVtt($content);
+            }
+
+            return $content;
+        } catch (\Exception $e) {
+            Log::error("SubDL: Error in downloadAndConvert: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Ubah SRT menjadi VTT.
+     *
+     * Implementasinya satu untuk seluruh aplikasi. Versi lama di kelas ini
+     * membuang setiap baris yang isinya hanya angka, sehingga dialog berupa
+     * angka ikut hilang dari takarir.
+     */
+    protected function srtToVtt(string $srt): string
+    {
+        return \App\Support\Subtitle\VttConverter::normalize($srt);
     }
 
     /**
@@ -140,12 +208,16 @@ class SubDLService
         try {
             $headers = [
                 'Accept' => 'application/json',
+                'User-Agent' => 'Antigravity-Netflix-Clone/1.0',
             ];
 
-            // Add API key if available
+            // Some versions of SubDL prefer the key in the URL, others in Header
             if ($this->apiKey) {
                 $headers['Api-Key'] = $this->apiKey;
+                $params['api_key'] = $this->apiKey; // Send in both to be safe
             }
+
+            Log::info('SubDL Request:', ['url' => $this->baseUrl, 'params' => $params]);
 
             $response = Http::withHeaders($headers)
                 ->timeout(15)
@@ -154,15 +226,17 @@ class SubDLService
             if ($response->successful()) {
                 $data = $response->json();
 
+                // Add debug logging
+                Log::info('SubDL Response Data:', ['data' => $data]);
+
                 if (isset($data['status']) && $data['status'] === true && isset($data['subtitles'])) {
                     return $this->formatResults($data['subtitles']);
                 }
 
-                Log::info('SubDL search response', ['data' => $data]);
                 return [];
             }
 
-            Log::warning('SubDL search failed', [
+            Log::error('SubDL search failed', [
                 'params' => $params,
                 'status' => $response->status(),
                 'body' => $response->body(),
@@ -249,5 +323,36 @@ class SubDLService
         ];
 
         return $languages[$code] ?? ucfirst($code);
+    }
+
+    /**
+     * Get 3-letter ISO code for SubDL
+     */
+    protected function getThreeLetterCode(string $code): string
+    {
+        $map = [
+            'en' => 'eng',
+            'id' => 'ind',
+            'ms' => 'msa',
+            'es' => 'spa',
+            'fr' => 'fra',
+            'de' => 'deu',
+            'it' => 'ita',
+            'pt' => 'por',
+            'ru' => 'rus',
+            'ja' => 'jpn',
+            'ko' => 'kor',
+            'zh' => 'chi',
+            'ar' => 'ara',
+            'hi' => 'hin',
+            'th' => 'tha',
+            'vi' => 'vie',
+            'nl' => 'dut',
+            'pl' => 'pol',
+            'tr' => 'tur',
+            'sv' => 'swe',
+        ];
+
+        return $map[$code] ?? $code;
     }
 }

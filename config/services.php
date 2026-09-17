@@ -56,4 +56,8 @@ return [
         'key' => env('SCRAPER_API_KEY'),
     ],
 
+    'consumet' => [
+        'base_url' => env('CONSUMET_API_URL', 'http://localhost:3000'),
+    ],
+
 ];

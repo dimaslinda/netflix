@@ -7,18 +7,15 @@ interface Top10RowProps {
     title: string;
     movies: Movie[];
     onSelect?: (movie: Movie) => void;
-    variant?: 'movie' | 'series';
 }
 
-export default function Top10Row({
-    title,
-    movies,
-    onSelect,
-    variant = 'movie',
-}: Top10RowProps) {
+export default function Top10Row({ title, movies, onSelect }: Top10RowProps) {
     const rowRef = useRef<HTMLDivElement>(null);
     const [showLeftArrow, setShowLeftArrow] = useState(false);
     const [showRightArrow, setShowRightArrow] = useState(true);
+    const [cutoffDate] = useState(
+        () => new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+    );
 
     const handleClick = (direction: 'left' | 'right') => {
         if (rowRef.current) {
@@ -35,7 +32,9 @@ export default function Top10Row({
                     setShowLeftArrow(rowRef.current.scrollLeft > 10);
                     setShowRightArrow(
                         rowRef.current.scrollLeft <
-                        rowRef.current.scrollWidth - rowRef.current.clientWidth - 10
+                            rowRef.current.scrollWidth -
+                                rowRef.current.clientWidth -
+                                10,
                     );
                 }
             }, 400);
@@ -47,7 +46,9 @@ export default function Top10Row({
             setShowLeftArrow(rowRef.current.scrollLeft > 10);
             setShowRightArrow(
                 rowRef.current.scrollLeft <
-                rowRef.current.scrollWidth - rowRef.current.clientWidth - 10
+                    rowRef.current.scrollWidth -
+                        rowRef.current.clientWidth -
+                        10,
             );
         }
     };
@@ -91,7 +92,7 @@ export default function Top10Row({
 
                         // Check if new
                         const isNew = movie.release_date
-                            ? new Date(movie.release_date) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+                            ? new Date(movie.release_date) > cutoffDate
                             : false;
 
                         return (
@@ -102,7 +103,7 @@ export default function Top10Row({
                             >
                                 {/* Large Number */}
                                 <span
-                                    className="select-none text-[120px] font-black leading-none text-transparent md:text-[160px] lg:text-[200px]"
+                                    className="text-[120px] leading-none font-black text-transparent select-none md:text-[160px] lg:text-[200px]"
                                     style={{
                                         WebkitTextStroke: '3px #595959',
                                         fontFamily: 'Arial Black, sans-serif',
@@ -113,7 +114,7 @@ export default function Top10Row({
                                 </span>
 
                                 {/* Poster Card */}
-                                <div className="relative -ml-8 mb-0 w-[100px] overflow-hidden rounded transition-transform duration-300 group-hover/card:scale-105 md:-ml-12 md:w-[130px] lg:w-[150px]">
+                                <div className="relative mb-0 -ml-8 w-[100px] overflow-hidden rounded transition-transform duration-300 group-hover/card:scale-105 md:-ml-12 md:w-[130px] lg:w-[150px]">
                                     <img
                                         src={imageUrl}
                                         alt={title}
@@ -123,13 +124,15 @@ export default function Top10Row({
 
                                     {/* Netflix Badge */}
                                     <div className="absolute top-1 left-1">
-                                        <span className="text-sm font-black text-red-600">N</span>
+                                        <span className="text-sm font-black text-red-600">
+                                            N
+                                        </span>
                                     </div>
 
                                     {/* Badge */}
                                     {isNew && (
                                         <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
-                                            <span className="whitespace-nowrap rounded bg-red-600 px-1.5 py-0.5 text-[8px] font-semibold text-white md:text-[9px]">
+                                            <span className="rounded bg-red-600 px-1.5 py-0.5 text-[8px] font-semibold whitespace-nowrap text-white md:text-[9px]">
                                                 Recently added
                                             </span>
                                         </div>

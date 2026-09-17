@@ -1,349 +1,273 @@
 import { Head, router } from '@inertiajs/react';
-import { Loader2, Search as SearchIcon } from 'lucide-react';
+import { Loader2, Search as SearchIcon, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import MovieCard from '@/components/netflix/MovieCard';
 import MovieModal from '@/components/netflix/MovieModal';
 import Navbar from '@/components/netflix/Navbar';
 import { Movie, TmdbResponse } from '@/types/tmdb';
 
-type ProviderKey =
-    | 'netflix'
-    | 'prime'
-    | 'disney'
-    | 'viu'
-    | 'vidio'
-    | 'hbomax';
-
 interface SearchProps {
-    provider?: ProviderKey | null;
     query: string;
     results: TmdbResponse | null;
 }
 
-const PROVIDER_THEMES: Record<
-    ProviderKey,
-    { background: string; headTitlePrefix: string }
-> = {
-    netflix: {
-        background: '#141414',
-        headTitlePrefix: 'Netflix',
-    },
-    prime: {
-        background: '#0f171e',
-        headTitlePrefix: 'Prime Video',
-    },
-    disney: {
-        background: '#040714',
-        headTitlePrefix: 'Disney+',
-    },
-    viu: {
-        background: '#1a1a1a',
-        headTitlePrefix: 'Viu',
-    },
-    vidio: {
-        background: '#141414',
-        headTitlePrefix: 'Vidio',
-    },
-    hbomax: {
-        background: '#0f1a2a',
-        headTitlePrefix: 'HBO Max',
-    },
-};
+/** Jeda sebelum ketikan dikirim sebagai pencarian, agar setiap huruf tidak
+ *  memicu satu permintaan ke TMDB. */
+const TYPING_SETTLE_MS = 500;
 
-export default function Search({ provider, query, results }: SearchProps) {
-    const [localQuery, setLocalQuery] = useState(query);
+export default function Search({ query, results }: SearchProps) {
+    const [typed, setTyped] = useState(query);
     const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
-    const [isMovieOpen, setIsMovieOpen] = useState(false);
-    const [myList, setMyList] = useState<Movie[]>(() => {
-        if (typeof window === 'undefined') return [];
-        try {
-            const raw = window.localStorage.getItem('mylist');
-            if (!raw) return [];
-            const parsed = JSON.parse(raw) as Movie[];
-            return Array.isArray(parsed) ? parsed : [];
-        } catch {
-            return [];
-        }
-    });
 
-    // Infinite scroll state
-    const [allResults, setAllResults] = useState<Movie[]>([]);
-    const [currentPage, setCurrentPage] = useState(1);
+    const [items, setItems] = useState<Movie[]>([]);
+    const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalResults, setTotalResults] = useState(0);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
-    const [currentSearchQuery, setCurrentSearchQuery] = useState(query);
-    const loadMoreRef = useRef<HTMLDivElement>(null);
-    const hasInitialized = useRef(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
-    const providerKey: ProviderKey = (
-        ['netflix', 'prime', 'disney', 'viu', 'vidio', 'hbomax'] as const
-    ).includes((provider ?? 'netflix') as ProviderKey)
-        ? ((provider ?? 'netflix') as ProviderKey)
-        : 'netflix';
+    const sentinelRef = useRef<HTMLDivElement>(null);
 
-    const theme = PROVIDER_THEMES[providerKey];
-
-    // Initialize results from server - run once when results change
+    // Hasil dari server adalah kebenaran awal setiap kali kueri berubah.
+    // Halaman berikutnya ditumpuk di atasnya lewat pengamat di bawah.
     useEffect(() => {
-        const serverResults = results?.results || [];
-        const filtered = serverResults.filter(
-            (item) => item.media_type === 'movie' || item.media_type === 'tv'
+        setItems(
+            (results?.results ?? []).filter(
+                (item) =>
+                    item.media_type === 'movie' || item.media_type === 'tv',
+            ),
         );
+        setPage(results?.page ?? 1);
+        setTotalPages(results?.total_pages ?? 1);
+        setTotalResults(results?.total_results ?? 0);
+        setLoadError(null);
+    }, [results]);
 
-        setAllResults(filtered);
-        setCurrentPage(results?.page || 1);
-        setTotalPages(results?.total_pages || 1);
-        setTotalResults(results?.total_results || 0);
-        setCurrentSearchQuery(query);
-        hasInitialized.current = true;
-    }, [results, query]);
-
-    // Load more results function
-    const loadMoreResults = useCallback(async () => {
-        if (isLoadingMore || currentPage >= totalPages || !currentSearchQuery) {
+    const loadMore = useCallback(async () => {
+        if (isLoadingMore || page >= totalPages || !query) {
             return;
         }
 
         setIsLoadingMore(true);
-        const nextPage = currentPage + 1;
+        setLoadError(null);
+
+        const nextPage = page + 1;
 
         try {
             const params = new URLSearchParams({
-                q: currentSearchQuery,
-                page: nextPage.toString(),
+                q: query,
+                page: String(nextPage),
             });
 
-            const response = await fetch(`/api/tmdb/search?${params.toString()}`);
-            const data = await response.json();
+            const response = await fetch(
+                `/api/tmdb/search?${params.toString()}`,
+            );
 
-            if (data.results && Array.isArray(data.results)) {
-                const filtered = data.results.filter(
-                    (item: Movie) => item.media_type === 'movie' || item.media_type === 'tv'
-                );
-                setAllResults((prev) => [...prev, ...filtered]);
-                setCurrentPage(nextPage);
-                if (data.total_pages) {
-                    setTotalPages(data.total_pages);
-                }
+            if (!response.ok) {
+                throw new Error('TMDB tidak merespons.');
             }
-        } catch (error) {
-            console.error('Failed to load more results:', error);
+
+            const data = (await response.json()) as TmdbResponse;
+
+            setItems((previous) => [
+                ...previous,
+                ...(data.results ?? []).filter(
+                    (item) =>
+                        item.media_type === 'movie' || item.media_type === 'tv',
+                ),
+            ]);
+            setPage(nextPage);
+
+            if (data.total_pages) {
+                setTotalPages(data.total_pages);
+            }
+        } catch (cause: unknown) {
+            setLoadError(
+                cause instanceof Error
+                    ? cause.message
+                    : 'Gagal memuat hasil berikutnya.',
+            );
         } finally {
             setIsLoadingMore(false);
         }
-    }, [currentPage, totalPages, currentSearchQuery, isLoadingMore]);
+    }, [isLoadingMore, page, totalPages, query]);
 
-    // Infinite scroll observer
     useEffect(() => {
+        const sentinel = sentinelRef.current;
+
+        if (!sentinel || items.length === 0 || page >= totalPages) {
+            return;
+        }
+
         const observer = new IntersectionObserver(
             (entries) => {
-                if (entries[0].isIntersecting && currentPage < totalPages && !isLoadingMore && allResults.length > 0) {
-                    loadMoreResults();
+                if (entries[0]?.isIntersecting) {
+                    void loadMore();
                 }
             },
-            { threshold: 0.1, rootMargin: '100px' }
+            { rootMargin: '200px' },
         );
 
-        const currentRef = loadMoreRef.current;
-        if (currentRef) {
-            observer.observe(currentRef);
-        }
+        observer.observe(sentinel);
 
-        return () => {
-            if (currentRef) {
-                observer.unobserve(currentRef);
-            }
-        };
-    }, [currentPage, totalPages, isLoadingMore, loadMoreResults, allResults.length]);
+        return () => observer.disconnect();
+    }, [loadMore, items.length, page, totalPages]);
 
-    const handleChangeProvider = () => {
-        if (typeof window !== 'undefined') {
-            try {
-                window.localStorage.removeItem('selectedProvider');
-            } catch {
-                void 0;
-            }
-        }
-        router.visit('/streaming/select');
-    };
-
-    const isInMyList = (movie: Movie) =>
-        myList.some((m) => m.id === movie.id);
-
-    const toggleMyList = (movie: Movie) => {
-        setMyList((prev) => {
-            const exists = prev.some((m) => m.id === movie.id);
-            const next = exists
-                ? prev.filter((m) => m.id !== movie.id)
-                : [...prev, movie];
-
-            try {
-                if (typeof window !== 'undefined') {
-                    window.localStorage.setItem('mylist', JSON.stringify(next));
-                }
-            } catch {
-                void 0;
-            }
-
-            return next;
-        });
-    };
-
-    // Debounced search
+    // Ketikan menunggu sejenak sebelum menjadi kunjungan halaman, jadi alamat
+    // di bilah tetap mencerminkan kueri dan bisa dibagikan.
     useEffect(() => {
-        const timeoutId = setTimeout(() => {
-            if (localQuery !== query) {
-                const params = new URLSearchParams();
-                if (localQuery) params.set('q', localQuery);
-                if (providerKey) params.set('provider', providerKey);
+        if (typed === query) {
+            return;
+        }
 
-                router.visit(`/search?${params.toString()}`, {
-                    preserveState: false,
-                    replace: true,
-                });
-            }
-        }, 500);
+        const timer = setTimeout(() => {
+            router.visit(
+                typed ? `/search?q=${encodeURIComponent(typed)}` : '/search',
+                { preserveState: false, replace: true },
+            );
+        }, TYPING_SETTLE_MS);
 
-        return () => clearTimeout(timeoutId);
-    }, [localQuery, query, providerKey]);
-
-    const handleOpenMovie = (movie: Movie) => {
-        setSelectedMovie(movie);
-        setIsMovieOpen(true);
-    };
-
-    const hasMore = currentPage < totalPages;
+        return () => clearTimeout(timer);
+    }, [typed, query]);
 
     return (
-        <div
-            className="min-h-screen overflow-x-hidden"
-            style={{ backgroundColor: theme.background }}
-        >
-            <Head title={`Search - ${theme.headTitlePrefix}`} />
+        <div className="min-h-screen overflow-x-hidden bg-[var(--cinema-base)] text-[var(--cinema-ink)]">
+            <Head title={query ? `Cari: ${query}` : 'Cari'} />
+            <Navbar activePath="/search" />
 
-            <Navbar
-                onProviderChange={handleChangeProvider}
-                onCategoryChange={(key) => {
-                    const params = new URLSearchParams();
-                    params.set('provider', providerKey);
-
-                    if (key === 'home') {
-                        router.visit(`/?${params.toString()}`);
-                    } else if (key === 'mylist') {
-                        router.visit(`/?${params.toString()}&category=mylist`);
-                    } else {
-                        router.visit(`/?${params.toString()}`);
-                    }
-                }}
-                activeCategory="home"
-                brand={providerKey}
-            />
-
-            <main className="relative pt-24 px-4 md:px-16 pb-10">
-                <div className="flex w-full items-center border-b border-zinc-700 bg-zinc-900/50 px-4 py-3 mb-8">
-                    <SearchIcon className="mr-3 h-6 w-6 text-zinc-400" />
-                    <input
-                        type="text"
-                        value={localQuery}
-                        onChange={(e) => setLocalQuery(e.target.value)}
-                        placeholder="Search for movies, TV shows..."
-                        className="w-full bg-transparent text-lg text-white placeholder:text-zinc-500 focus:outline-none md:text-2xl"
-                        autoFocus
+            <main className="px-4 pt-24 pb-20 md:px-12 lg:px-16">
+                <label htmlFor="search-input" className="sr-only">
+                    Cari judul film atau serial
+                </label>
+                <div className="relative mx-auto max-w-2xl">
+                    <SearchIcon
+                        className="absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-[var(--cinema-ink-faint)]"
+                        aria-hidden="true"
                     />
-                </div>
-
-                {/* Results info */}
-                {query && totalResults > 0 && (
-                    <div className="mb-4 text-sm text-zinc-400">
-                        Showing {allResults.length} of {totalResults.toLocaleString()} results for "{query}"
-                    </div>
-                )}
-
-                {/* No results message */}
-                {query && allResults.length === 0 && !isLoadingMore && (
-                    <div className="flex flex-col items-center justify-center py-20 text-zinc-400">
-                        <p className="text-lg">Your search for "{query}" did not have any matches.</p>
-                        <p className="mt-2 text-sm">Suggestions:</p>
-                        <ul className="mt-2 list-disc text-sm">
-                            <li>Try different keywords</li>
-                            <li>Looking for a movie or TV show?</li>
-                            <li>Try using a movie, TV show title, or an actor name</li>
-                        </ul>
-                    </div>
-                )}
-
-                {/* Results grid */}
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                    {allResults.map((movie, index) => {
-                        const backdropPath = movie.backdrop_path || movie.poster_path;
-                        const imageUrl = backdropPath
-                            ? `https://image.tmdb.org/t/p/w780${backdropPath}`
-                            : 'https://placehold.co/780x439/1a1a1a/ffffff?text=No+Image';
-                        const movieTitle = movie.title || movie.name || movie.original_name;
-
-                        return (
-                            <button
-                                key={`${movie.media_type}-${movie.id}-${index}`}
-                                type="button"
-                                className="group relative flex flex-col text-left transition duration-300 hover:z-10 hover:scale-105"
-                                onClick={() => handleOpenMovie(movie)}
-                            >
-                                <div className="aspect-video w-full overflow-hidden rounded-md bg-zinc-800">
-                                    <img
-                                        src={imageUrl}
-                                        alt={movieTitle}
-                                        className="h-full w-full object-cover"
-                                        loading="lazy"
-                                    />
-                                </div>
-                                <div className="mt-2 px-1">
-                                    <span className="line-clamp-1 text-sm font-medium text-zinc-200 group-hover:text-white">
-                                        {movieTitle}
-                                    </span>
-                                </div>
-                            </button>
-                        );
-                    })}
-                </div>
-
-                {/* Load more trigger / loading indicator */}
-                <div ref={loadMoreRef} className="mt-8 flex justify-center py-4">
-                    {isLoadingMore && (
-                        <div className="flex items-center gap-2 text-zinc-400">
-                            <Loader2 className="h-6 w-6 animate-spin" />
-                            <span>Loading more results...</span>
-                        </div>
-                    )}
-                    {hasMore && !isLoadingMore && allResults.length > 0 && (
+                    <input
+                        id="search-input"
+                        type="search"
+                        value={typed}
+                        autoFocus
+                        onChange={(event) => setTyped(event.target.value)}
+                        placeholder="Ketik judul film atau serial"
+                        className="cinema-focus h-14 w-full rounded-[var(--cinema-radius-panel)] border border-[var(--cinema-line)] bg-[var(--cinema-raised)] pr-12 pl-12 text-[15px] text-[var(--cinema-ink)] placeholder:text-[var(--cinema-ink-faint)]"
+                    />
+                    {typed && (
                         <button
-                            onClick={loadMoreResults}
-                            className="rounded-lg bg-zinc-800 px-6 py-3 text-sm font-medium text-white transition hover:bg-zinc-700"
+                            type="button"
+                            onClick={() => setTyped('')}
+                            aria-label="Kosongkan pencarian"
+                            className="cinema-focus absolute top-1/2 right-2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-[var(--cinema-ink-faint)] transition hover:bg-white/5 hover:text-[var(--cinema-ink)]"
                         >
-                            Load More Results ({allResults.length} of {totalResults.toLocaleString()})
+                            <X className="h-4 w-4" aria-hidden="true" />
                         </button>
                     )}
-                    {!hasMore && allResults.length > 0 && (
-                        <p className="text-sm text-zinc-500">
-                            All {totalResults.toLocaleString()} results loaded
-                        </p>
+                </div>
+
+                <div className="mt-10">
+                    {!query ? (
+                        <EmptyPanel
+                            title="Mulai mengetik"
+                            description="Hasil datang dari TMDB. Untuk memutar sebuah judul, Anda tetap perlu memilih sumber berkasnya di halaman tonton."
+                        />
+                    ) : items.length === 0 ? (
+                        <EmptyPanel
+                            title={`Tidak ada hasil untuk "${query}"`}
+                            description="Periksa ejaannya, atau coba judul aslinya dalam bahasa Inggris."
+                        />
+                    ) : (
+                        <>
+                            <p
+                                aria-live="polite"
+                                className="mb-6 text-[13px] text-[var(--cinema-ink-faint)]"
+                            >
+                                {totalResults.toLocaleString('id-ID')} judul
+                                cocok
+                            </p>
+
+                            <ul className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+                                {items.map((movie, index) => (
+                                    <li key={`${movie.id}-${index}`}>
+                                        <MovieCard
+                                            movie={movie}
+                                            onSelect={setSelectedMovie}
+                                            size="poster"
+                                            showTitleBelow
+                                            isSearchCard
+                                        />
+                                    </li>
+                                ))}
+                            </ul>
+
+                            <div
+                                ref={sentinelRef}
+                                className="flex min-h-16 items-center justify-center pt-10"
+                            >
+                                {isLoadingMore && (
+                                    <Loader2
+                                        className="h-6 w-6 animate-spin text-[var(--cinema-ink-faint)]"
+                                        aria-label="Memuat hasil berikutnya"
+                                    />
+                                )}
+
+                                {loadError && (
+                                    <div className="text-center">
+                                        <p className="text-sm text-[var(--cinema-ink-soft)]">
+                                            {loadError}
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() => void loadMore()}
+                                            className="cinema-focus mt-3 min-h-11 rounded bg-[var(--cinema-raised)] px-5 text-sm font-semibold transition hover:bg-[var(--cinema-overlay)]"
+                                        >
+                                            Coba lagi
+                                        </button>
+                                    </div>
+                                )}
+
+                                {!isLoadingMore &&
+                                    !loadError &&
+                                    page >= totalPages && (
+                                        <p className="text-[13px] text-[var(--cinema-ink-faint)]">
+                                            Sudah sampai akhir hasil.
+                                        </p>
+                                    )}
+                            </div>
+                        </>
                     )}
                 </div>
             </main>
 
-            {isMovieOpen && selectedMovie ? (
+            {selectedMovie && (
                 <MovieModal
-                    key={`${selectedMovie.media_type ?? 'movie'}-${selectedMovie.id}`}
-                    open={isMovieOpen}
+                    open
                     onOpenChange={(open) => {
-                        setIsMovieOpen(open);
-                        if (!open) setSelectedMovie(null);
+                        if (!open) {
+                            setSelectedMovie(null);
+                        }
                     }}
                     movie={selectedMovie}
-                    inMyList={selectedMovie ? isInMyList(selectedMovie) : false}
-                    onToggleMyList={toggleMyList}
                 />
-            ) : null}
+            )}
+        </div>
+    );
+}
+
+function EmptyPanel({
+    title,
+    description,
+}: {
+    title: string;
+    description: string;
+}) {
+    return (
+        <div className="mx-auto max-w-lg rounded-[var(--cinema-radius-panel)] border border-[var(--cinema-line)] bg-[var(--cinema-raised)] px-8 py-14 text-center">
+            <p className="font-semibold">{title}</p>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--cinema-ink-soft)]">
+                {description}
+            </p>
         </div>
     );
 }

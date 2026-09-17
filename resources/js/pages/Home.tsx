@@ -1,863 +1,264 @@
 import { Head, router } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
+import BrandFilterBar from '@/components/netflix/BrandFilterBar';
+import ContinueWatchingRow from '@/components/netflix/ContinueWatchingRow';
 import Footer from '@/components/netflix/Footer';
 import Hero from '@/components/netflix/Hero';
+import MovieCard from '@/components/netflix/MovieCard';
+import MovieHoverPortal from '@/components/netflix/MovieHoverPortal';
 import MovieModal from '@/components/netflix/MovieModal';
 import MovieRow from '@/components/netflix/MovieRow';
 import Navbar from '@/components/netflix/Navbar';
-import PublicDomainModal from '@/components/netflix/PublicDomainModal';
-import PublicDomainRow from '@/components/netflix/PublicDomainRow';
 import Top10Row from '@/components/netflix/Top10Row';
+import { syncUserWatchHistory } from '@/lib/continue-watching';
 import {
-    ArchivePublicDomainItem,
-    ArchivePublicDomainResponse,
-} from '@/types/archive';
+    fetchUserBookmarks,
+    readLocalMyList,
+    toggleServerBookmark,
+    writeLocalMyList,
+} from '@/lib/user-bookmarks';
 import { Movie, TmdbResponse } from '@/types/tmdb';
 
-type CategoryKey = 'home' | 'tv' | 'movie' | 'new' | 'mylist';
-
-type ProviderKey = 'netflix' | 'prime' | 'disney' | 'viu' | 'vidio' | 'hbomax';
-
 interface HomeProps {
-    trending: TmdbResponse;
-    topRated: TmdbResponse;
-    trendingTv: TmdbResponse;
-    topRatedTv: TmdbResponse;
-    actionMovies: TmdbResponse;
-    comedyMovies: TmdbResponse;
-    horrorMovies: TmdbResponse;
-    romanceMovies: TmdbResponse;
-    documentaries: TmdbResponse;
-    animationMovies: TmdbResponse;
-    animeMovies: TmdbResponse;
-    // New categories
-    thrillerMovies: TmdbResponse;
-    sciFiMovies: TmdbResponse;
-    dramaMovies: TmdbResponse;
-    crimeMovies: TmdbResponse;
-    familyMovies: TmdbResponse;
-    fantasyMovies: TmdbResponse;
-    mysteryMovies: TmdbResponse;
-    koreanContent: TmdbResponse;
-    popularTv: TmdbResponse;
-    nowPlaying: TmdbResponse;
-    provider?: ProviderKey | null;
+    provider?: string;
+    disneyCollection?: TmdbResponse;
+    trending?: TmdbResponse;
+    topRated?: TmdbResponse;
+    trendingTv?: TmdbResponse;
+    topRatedTv?: TmdbResponse;
+    actionMovies?: TmdbResponse;
+    comedyMovies?: TmdbResponse;
+    horrorMovies?: TmdbResponse;
+    romanceMovies?: TmdbResponse;
+    documentaries?: TmdbResponse;
+    animationMovies?: TmdbResponse;
+    animeMovies?: TmdbResponse;
+    thrillerMovies?: TmdbResponse;
+    sciFiMovies?: TmdbResponse;
+    dramaMovies?: TmdbResponse;
+    crimeMovies?: TmdbResponse;
+    familyMovies?: TmdbResponse;
+    fantasyMovies?: TmdbResponse;
+    mysteryMovies?: TmdbResponse;
+    koreanContent?: TmdbResponse;
+    popularTv?: TmdbResponse;
+    nowPlaying?: TmdbResponse;
 }
 
-const PROVIDER_THEMES: Record<
-    ProviderKey,
-    { background: string; headTitle: string }
-> = {
-    netflix: {
-        background: '#141414',
-        headTitle: 'Home - Netflix',
-    },
-    prime: {
-        background: '#0f171e',
-        headTitle: 'Home - Prime Video',
-    },
-    disney: {
-        background: '#040714',
-        headTitle: 'Home - Disney+',
-    },
-    viu: {
-        background: '#1a1a1a',
-        headTitle: 'Home - Viu',
-    },
-    vidio: {
-        background: '#141414',
-        headTitle: 'Home - Vidio',
-    },
-    hbomax: {
-        background: '#0f1a2a',
-        headTitle: 'Home - HBO Max',
-    },
-};
+export default function Home(props: HomeProps) {
+    const isMyListView =
+        typeof window !== 'undefined' &&
+        new URLSearchParams(window.location.search).get('category') ===
+            'mylist';
 
-export default function Home({
-    trending,
-    topRated,
-    trendingTv,
-    topRatedTv,
-    actionMovies,
-    comedyMovies,
-    horrorMovies,
-    romanceMovies,
-    documentaries,
-    animationMovies,
-    animeMovies,
-    thrillerMovies,
-    sciFiMovies,
-    dramaMovies,
-    crimeMovies,
-    familyMovies,
-    fantasyMovies,
-    mysteryMovies,
-    koreanContent,
-    popularTv,
-    nowPlaying,
-    provider,
-}: HomeProps) {
-    // Prioritize movies with actual backdrop images for the hero
-    const heroMovie = useMemo(() => {
-        // First, try to find a movie with backdrop_path from trending
-        const withBackdrop = (trending?.results || []).find(
-            (m) => m.backdrop_path && m.backdrop_path.length > 0,
-        );
-        if (withBackdrop) return withBackdrop;
-
-        // Try from now playing
-        const fromNowPlaying = (nowPlaying?.results || []).find(
-            (m) => m.backdrop_path && m.backdrop_path.length > 0,
-        );
-        if (fromNowPlaying) return fromNowPlaying;
-
-        // Try from popular TV
-        const fromPopularTv = (popularTv?.results || []).find(
-            (m) => m.backdrop_path && m.backdrop_path.length > 0,
-        );
-        if (fromPopularTv) return fromPopularTv;
-
-        // Fallback to any movie with poster_path
-        const withPoster = (trending?.results || []).find(
-            (m) => m.poster_path && m.poster_path.length > 0,
-        );
-        if (withPoster) return withPoster;
-
-        // Last resort: first movie
-        return trending?.results?.[0] || undefined;
-    }, [trending, nowPlaying, popularTv]);
     const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
-    const [isMovieOpen, setIsMovieOpen] = useState(false);
-    const [publicDomain, setPublicDomain] = useState<ArchivePublicDomainItem[]>(
-        [],
-    );
-    const [selectedPublicDomain, setSelectedPublicDomain] =
-        useState<ArchivePublicDomainItem | null>(null);
-    const [isPublicDomainOpen, setIsPublicDomainOpen] = useState(false);
-    const [activeCategory, setActiveCategory] = useState<CategoryKey>('home');
-    const [myList, setMyList] = useState<Movie[]>(() => {
-        if (typeof window === 'undefined') return [];
+    const [hovered, setHovered] = useState<{
+        movie: Movie;
+        rect: DOMRect;
+    } | null>(null);
 
-        try {
-            const raw = window.localStorage.getItem('mylist');
-            if (!raw) return [];
-            const parsed = JSON.parse(raw) as Movie[];
-            return Array.isArray(parsed) ? parsed : [];
-        } catch {
-            return [];
-        }
-    });
+    const [myList, setMyList] = useState<Movie[]>(readLocalMyList);
 
-    const providerKey: ProviderKey = (
-        ['netflix', 'prime', 'disney', 'viu', 'vidio', 'hbomax'] as const
-    ).includes((provider ?? 'netflix') as ProviderKey)
-        ? ((provider ?? 'netflix') as ProviderKey)
-        : 'netflix';
-
-    const theme = PROVIDER_THEMES[providerKey];
-
-    const handleChangeProvider = () => {
-        if (typeof window !== 'undefined') {
-            try {
-                window.localStorage.removeItem('selectedProvider');
-            } catch {
-                void 0;
-            }
-        }
-        router.visit('/streaming/select');
-    };
-
+    // Sinkronisasi riwayat tontonan dan daftar simpanan akun dari database
     useEffect(() => {
-        if (typeof window === 'undefined') return;
+        syncUserWatchHistory();
 
-        const search = window.location.search;
-        const params = new URLSearchParams(search);
-        const providerFromUrl = params.get('provider');
-
-        if (providerFromUrl) {
-            try {
-                window.localStorage.setItem(
-                    'selectedProvider',
-                    providerFromUrl,
-                );
-            } catch {
-                void 0;
+        fetchUserBookmarks().then((items) => {
+            if (items) {
+                setMyList(items);
             }
-            return;
-        }
+        });
 
-        let storedProvider: string | null = null;
-        try {
-            storedProvider = window.localStorage.getItem('selectedProvider');
-        } catch {
-            storedProvider = null;
-        }
-
-        if (storedProvider) {
-            router.visit(`/?provider=${storedProvider}`);
-        } else {
-            router.visit('/streaming/select');
-        }
+        const handleBookmarksUpdated = () => {
+            setMyList(readLocalMyList());
+        };
+        window.addEventListener(
+            'user-bookmarks-updated',
+            handleBookmarksUpdated,
+        );
+        return () =>
+            window.removeEventListener(
+                'user-bookmarks-updated',
+                handleBookmarksUpdated,
+            );
     }, []);
 
-    useEffect(() => {
-        fetch('/api/archive/public-domain?rows=20')
-            .then((r) => r.json())
-            .then((json: ArchivePublicDomainResponse) => {
-                setPublicDomain(json.items || []);
-            })
-            .catch(() => { });
-    }, []);
-
-    const openMovie = (movie: Movie) => {
+    const openDetails = useCallback((movie: Movie) => {
+        setHovered(null);
         setSelectedMovie(movie);
-        setIsMovieOpen(true);
-    };
-    const openMovieDetails = (movie: Movie) => {
-        const mediaType = movie.media_type === 'tv' ? 'tv' : 'movie';
-        window.location.href = `/title/${mediaType}/${movie.id}`;
-    };
-    const openPublicDomain = (item: ArchivePublicDomainItem) => {
-        setSelectedPublicDomain(item);
-        setIsPublicDomainOpen(true);
-    };
+    }, []);
 
-    const isInMyList = (movie: Movie) =>
-        myList.some((m) => m.id === movie.id);
+    const play = useCallback((movie: Movie) => {
+        router.visit(`/watch/${movie.media_type ?? 'movie'}/${movie.id}`);
+    }, []);
 
-    const toggleMyList = (movie: Movie) => {
-        setMyList((prev) => {
-            const exists = prev.some((m) => m.id === movie.id);
-            const next = exists
-                ? prev.filter((m) => m.id !== movie.id)
-                : [...prev, movie];
+    const toggleMyList = useCallback((movie: Movie) => {
+        setMyList((previous) => {
+            const next = previous.some((entry) => entry.id === movie.id)
+                ? previous.filter((entry) => entry.id !== movie.id)
+                : [...previous, movie];
 
-            try {
-                if (typeof window !== 'undefined') {
-                    window.localStorage.setItem('mylist', JSON.stringify(next));
-                }
-            } catch {
-                void 0;
-            }
+            writeLocalMyList(next);
+            toggleServerBookmark(movie);
 
             return next;
         });
-    };
+    }, []);
 
-    interface HomeRow {
-        title: string;
-        data: TmdbResponse;
-        variant: 'default' | 'large' | 'poster';
-        showRank?: boolean;
-        browseCategory?: string;
-    }
+    const heroMovie =
+        props.trending?.results?.[0] ?? props.nowPlaying?.results?.[0];
 
-    const filteredRows = useMemo<HomeRow[]>(() => {
-        if (!trending) return [];
-
-        if (activeCategory === 'home') {
-            const rows: HomeRow[] = [];
-
-            // Trending Now
-            if (trending?.results?.length) {
-                rows.push({
-                    title: 'Trending Now',
-                    data: trending,
-                    variant: 'default',
-                    browseCategory: 'trending',
-                });
-            }
-
-            // Top 10 in Indonesia (Netflix specific)
-            if (providerKey === 'netflix' && trending.results?.length) {
-                const topTen: TmdbResponse = {
-                    ...trending,
-                    results: trending.results.slice(0, 10),
-                };
-                rows.push({
-                    title: 'Top 10 in Indonesia Today',
-                    data: topTen,
-                    variant: 'large',
-                    showRank: true,
-                });
-            }
-
-            // Now Playing in Theaters
-            if (nowPlaying?.results?.length) {
-                rows.push({
-                    title: 'Now Playing in Theaters',
-                    data: nowPlaying,
-                    variant: 'default',
-                    browseCategory: 'now-playing',
-                });
-            }
-
-            // Popular TV Shows
-            if (popularTv?.results?.length) {
-                rows.push({
-                    title: 'Popular TV Shows',
-                    data: popularTv,
-                    variant: 'default',
-                    browseCategory: 'popular-tv',
-                });
-            }
-
-            // Top Rated
-            if (topRated?.results?.length) {
-                rows.push({
-                    title: 'Top Rated',
-                    data: topRated,
-                    variant: 'default',
-                    browseCategory: 'top-rated',
-                });
-            }
-
-            // Korean Dramas
-            if (koreanContent?.results?.length) {
-                rows.push({
-                    title: 'Korean Dramas',
-                    data: koreanContent,
-                    variant: 'default',
-                    browseCategory: 'korean',
-                });
-            }
-
-            // Action
-            if (actionMovies?.results?.length) {
-                rows.push({
-                    title: 'Action & Adventure',
-                    data: actionMovies,
-                    variant: 'default',
-                    browseCategory: 'action',
-                });
-            }
-
-            // Thriller
-            if (thrillerMovies?.results?.length) {
-                rows.push({
-                    title: 'Thrillers',
-                    data: thrillerMovies,
-                    variant: 'default',
-                    browseCategory: 'thriller',
-                });
-            }
-
-            // Sci-Fi
-            if (sciFiMovies?.results?.length) {
-                rows.push({
-                    title: 'Sci-Fi & Fantasy',
-                    data: sciFiMovies,
-                    variant: 'default',
-                    browseCategory: 'scifi',
-                });
-            }
-
-            // Comedy
-            if (comedyMovies?.results?.length) {
-                rows.push({
-                    title: 'Comedies',
-                    data: comedyMovies,
-                    variant: 'default',
-                    browseCategory: 'comedy',
-                });
-            }
-
-            // Drama
-            if (dramaMovies?.results?.length) {
-                rows.push({
-                    title: 'Dramas',
-                    data: dramaMovies,
-                    variant: 'default',
-                    browseCategory: 'drama',
-                });
-            }
-
-            // Horror
-            if (horrorMovies?.results?.length) {
-                rows.push({
-                    title: 'Scary Movies',
-                    data: horrorMovies,
-                    variant: 'default',
-                    browseCategory: 'horror',
-                });
-            }
-
-            // Crime
-            if (crimeMovies?.results?.length) {
-                rows.push({
-                    title: 'Crime',
-                    data: crimeMovies,
-                    variant: 'default',
-                    browseCategory: 'crime',
-                });
-            }
-
-            // Romance
-            if (romanceMovies?.results?.length) {
-                rows.push({
-                    title: 'Romantic Movies',
-                    data: romanceMovies,
-                    variant: 'default',
-                    browseCategory: 'romance',
-                });
-            }
-
-            // Family
-            if (familyMovies?.results?.length) {
-                rows.push({
-                    title: 'Family Favorites',
-                    data: familyMovies,
-                    variant: 'default',
-                    browseCategory: 'family',
-                });
-            }
-
-            // Fantasy
-            if (fantasyMovies?.results?.length) {
-                rows.push({
-                    title: 'Fantasy',
-                    data: fantasyMovies,
-                    variant: 'default',
-                    browseCategory: 'fantasy',
-                });
-            }
-
-            // Mystery
-            if (mysteryMovies?.results?.length) {
-                rows.push({
-                    title: 'Mystery',
-                    data: mysteryMovies,
-                    variant: 'default',
-                    browseCategory: 'mystery',
-                });
-            }
-
-            // Documentaries
-            if (documentaries?.results?.length) {
-                rows.push({
-                    title: 'Documentaries',
-                    data: documentaries,
-                    variant: 'default',
-                    browseCategory: 'documentaries',
-                });
-            }
-
-            // Animation
-            if (animationMovies?.results?.length) {
-                rows.push({
-                    title: 'Animation',
-                    data: animationMovies,
-                    variant: 'default',
-                    browseCategory: 'animation',
-                });
-            }
-
-            // Anime
-            if (animeMovies?.results?.length) {
-                rows.push({
-                    title: 'Anime',
-                    data: animeMovies,
-                    variant: 'default',
-                    browseCategory: 'anime',
-                });
-            }
-
-            return rows;
-        }
-
-        if (activeCategory === 'tv') {
-            const rows: HomeRow[] = [];
-
-            if (trendingTv?.results?.length) {
-                rows.push({
-                    title: 'Trending TV Shows',
-                    data: trendingTv,
-                    variant: 'large',
-                    browseCategory: 'tv-trending',
-                });
-            }
-
-            if (topRatedTv?.results?.length) {
-                rows.push({
-                    title: 'Top Rated TV Shows',
-                    data: topRatedTv,
-                    variant: 'large',
-                    browseCategory: 'tv-top-rated',
-                });
-            }
-
-            if (popularTv?.results?.length) {
-                rows.push({
-                    title: 'Popular on Netflix',
-                    data: popularTv,
-                    variant: 'large',
-                    browseCategory: 'popular-tv',
-                });
-            }
-
-            if (koreanContent?.results?.length) {
-                rows.push({
-                    title: 'K-Dramas',
-                    data: koreanContent,
-                    variant: 'large',
-                    browseCategory: 'korean',
-                });
-            }
-
-            return rows;
-        }
-
-        if (activeCategory === 'movie') {
-            const movieOnly = (
-                response: TmdbResponse | null,
-            ): TmdbResponse | null =>
-                response
-                    ? {
-                        ...response,
-                        results: response.results.filter(
-                            (m) => m.media_type === 'movie' || !m.media_type,
-                        ),
-                    }
-                    : null;
-
-            const rows: HomeRow[] = [];
-
-            const trendingMovies = movieOnly(trending);
-            if (trendingMovies?.results?.length) {
-                rows.push({
-                    title: 'Trending Movies',
-                    data: trendingMovies,
-                    variant: 'large',
-                    browseCategory: 'trending',
-                });
-            }
-
-            if (nowPlaying?.results?.length) {
-                rows.push({
-                    title: 'In Theaters',
-                    data: nowPlaying,
-                    variant: 'large',
-                    browseCategory: 'now-playing',
-                });
-            }
-
-            const topRatedMovies = movieOnly(topRated);
-            if (topRatedMovies?.results?.length) {
-                rows.push({
-                    title: 'Top Rated',
-                    data: topRatedMovies,
-                    variant: 'large',
-                    browseCategory: 'top-rated',
-                });
-            }
-
-            if (actionMovies?.results?.length) {
-                rows.push({
-                    title: 'Action',
-                    data: actionMovies,
-                    variant: 'large',
-                    browseCategory: 'action',
-                });
-            }
-
-            if (sciFiMovies?.results?.length) {
-                rows.push({
-                    title: 'Sci-Fi',
-                    data: sciFiMovies,
-                    variant: 'large',
-                    browseCategory: 'scifi',
-                });
-            }
-
-            if (thrillerMovies?.results?.length) {
-                rows.push({
-                    title: 'Thrillers',
-                    data: thrillerMovies,
-                    variant: 'large',
-                    browseCategory: 'thriller',
-                });
-            }
-
-            if (horrorMovies?.results?.length) {
-                rows.push({
-                    title: 'Horror',
-                    data: horrorMovies,
-                    variant: 'large',
-                    browseCategory: 'horror',
-                });
-            }
-
-            if (comedyMovies?.results?.length) {
-                rows.push({
-                    title: 'Comedy',
-                    data: comedyMovies,
-                    variant: 'large',
-                    browseCategory: 'comedy',
-                });
-            }
-
-            if (dramaMovies?.results?.length) {
-                rows.push({
-                    title: 'Drama',
-                    data: dramaMovies,
-                    variant: 'large',
-                    browseCategory: 'drama',
-                });
-            }
-
-            if (romanceMovies?.results?.length) {
-                rows.push({
-                    title: 'Romance',
-                    data: romanceMovies,
-                    variant: 'large',
-                    browseCategory: 'romance',
-                });
-            }
-
-            if (animationMovies?.results?.length) {
-                rows.push({
-                    title: 'Animation',
-                    data: animationMovies,
-                    variant: 'large',
-                    browseCategory: 'animation',
-                });
-            }
-
-            return rows;
-        }
-
-        if (activeCategory === 'new') {
-            const rows: HomeRow[] = [];
-
-            if (nowPlaying?.results?.length) {
-                rows.push({
-                    title: 'New Releases',
-                    data: nowPlaying,
-                    variant: 'large',
-                    browseCategory: 'now-playing',
-                });
-            }
-
-            if (trending?.results?.length) {
-                rows.push({
-                    title: 'Popular Movies',
-                    data: trending,
-                    variant: 'large',
-                    browseCategory: 'trending',
-                });
-            }
-
-            if (trendingTv?.results?.length) {
-                rows.push({
-                    title: 'Popular TV Shows',
-                    data: trendingTv,
-                    variant: 'large',
-                    browseCategory: 'tv-trending',
-                });
-            }
-
-            if (koreanContent?.results?.length) {
-                rows.push({
-                    title: 'New Korean Dramas',
-                    data: koreanContent,
-                    variant: 'large',
-                    browseCategory: 'korean',
-                });
-            }
-
-            return rows;
-        }
-
-        if (activeCategory === 'mylist') {
-            if (!myList.length) {
-                return [];
-            }
-
-            const data: TmdbResponse = {
-                page: 1,
-                results: myList,
-                total_pages: 1,
-                total_results: myList.length,
-            };
-
-            return [
-                {
-                    title: 'My List',
-                    data,
-                    variant: 'large',
-                },
-            ];
-        }
-
-        return [];
-    }, [
-        activeCategory,
-        trending,
-        topRated,
-        trendingTv,
-        topRatedTv,
-        actionMovies,
-        comedyMovies,
-        horrorMovies,
-        romanceMovies,
-        documentaries,
-        animationMovies,
-        animeMovies,
-        thrillerMovies,
-        sciFiMovies,
-        dramaMovies,
-        crimeMovies,
-        familyMovies,
-        fantasyMovies,
-        mysteryMovies,
-        koreanContent,
-        popularTv,
-        nowPlaying,
-        providerKey,
-        myList,
-    ]);
-
-    if (!heroMovie) {
-        return (
-            <div
-                className="min-h-screen text-white"
-                style={{ backgroundColor: theme.background }}
-            >
-                <Head title={theme.headTitle} />
-                <Navbar
-                    onSearchClick={() => {
-                        const params = new URLSearchParams();
-                        if (providerKey) params.set('provider', providerKey);
-                        router.visit(`/search?${params.toString()}`);
-                    }}
-                    onCategoryChange={setActiveCategory}
-                    onProviderChange={handleChangeProvider}
-                    activeCategory={activeCategory}
-                    brand={providerKey}
-                />
-                <main className="flex min-h-screen items-center justify-center px-4 pt-24 md:px-16">
-                    <div className="text-center">
-                        <div className="mb-4 h-12 w-12 mx-auto animate-spin rounded-full border-4 border-red-600 border-t-transparent" />
-                        <p className="text-zinc-400">Loading content...</p>
-                    </div>
-                </main>
-                <Footer />
-            </div>
-        );
-    }
+    const discoveryRows: { title: string; movies?: Movie[] }[] = [
+        ...(props.disneyCollection?.results &&
+        props.disneyCollection.results.length > 0
+            ? [
+                  {
+                      title: 'Koleksi Populer Disney & Pixar',
+                      movies: props.disneyCollection.results,
+                  },
+              ]
+            : []),
+        { title: 'Sedang ramai', movies: props.trending?.results },
+        { title: 'Baru tayang', movies: props.nowPlaying?.results },
+        { title: 'Penilaian tertinggi', movies: props.topRated?.results },
+        { title: 'Serial populer', movies: props.popularTv?.results },
+        { title: 'Laga', movies: props.actionMovies?.results },
+        { title: 'Drama Korea', movies: props.koreanContent?.results },
+        { title: 'Komedi', movies: props.comedyMovies?.results },
+        { title: 'Horor', movies: props.horrorMovies?.results },
+        { title: 'Fiksi ilmiah', movies: props.sciFiMovies?.results },
+        { title: 'Dokumenter', movies: props.documentaries?.results },
+        { title: 'Anime', movies: props.animeMovies?.results },
+        { title: 'Misteri', movies: props.mysteryMovies?.results },
+    ];
 
     return (
-        <div
-            className="min-h-screen overflow-x-hidden"
-            style={{ backgroundColor: theme.background }}
-        >
-            <Head title={theme.headTitle} />
+        <div className="min-h-screen overflow-x-hidden bg-[var(--cinema-base)] text-[var(--cinema-ink)]">
+            <Head title={isMyListView ? 'Daftar Saya' : 'Beranda'} />
+
             <Navbar
-                onSearchClick={() => {
-                    const params = new URLSearchParams();
-                    if (providerKey) params.set('provider', providerKey);
-                    router.visit(`/search?${params.toString()}`);
-                }}
-                onCategoryChange={setActiveCategory}
-                onProviderChange={handleChangeProvider}
-                activeCategory={activeCategory}
-                brand={providerKey}
+                activePath={
+                    props.provider ? `/?provider=${props.provider}` : '/'
+                }
             />
 
-            <main className="relative">
-                <Hero
-                    movie={heroMovie}
-                    onPlay={openMovie}
-                    onMoreInfo={openMovieDetails}
-                />
-
-                <section className="relative z-20 space-y-6 pb-8 md:space-y-10">
-                    {filteredRows.map((row) =>
-                        row.data ? (
-                            <div key={row.title} className="space-y-1">
-                                {!row.showRank && (
-                                    <div className="flex items-center justify-between px-4 md:px-12 lg:px-16">
-                                        <h2 className="cursor-pointer text-base font-bold text-[#e5e5e5] transition duration-200 hover:text-white md:text-xl lg:text-2xl">
-                                            {row.title}
-                                        </h2>
-                                        {row.browseCategory ? (
-                                            <button
-                                                type="button"
-                                                className="text-xs font-semibold text-zinc-300 hover:text-white md:text-sm"
-                                                onClick={() => {
-                                                    const params = new URLSearchParams();
-                                                    params.set('provider', providerKey);
-                                                    params.set('page', '1');
-                                                    router.visit(
-                                                        `/browse/${row.browseCategory}?${params.toString()}`,
-                                                    );
-                                                }}
-                                            >
-                                                See All →
-                                            </button>
-                                        ) : null}
-                                    </div>
-                                )}
-                                {row.showRank ? (
-                                    <Top10Row
-                                        title={row.title}
-                                        movies={row.data.results}
-                                        onSelect={openMovie}
-                                    />
-                                ) : (
-                                    <MovieRow
-                                        title={row.title}
-                                        movies={row.data.results}
-                                        onSelect={openMovie}
-                                        variant={row.variant as 'default' | 'large' | 'poster'}
-                                        hideTitle
-                                    />
-                                )}
-                            </div>
-                        ) : null,
-                    )}
-
-                    {publicDomain.length ? (
-                        <div className="space-y-1 px-4 md:px-12 lg:px-16">
-                            <PublicDomainRow
-                                title="Free to Watch (Public Domain)"
-                                items={publicDomain}
-                                onSelect={openPublicDomain}
+            <main>
+                {isMyListView ? (
+                    <MyListView list={myList} onSelect={openDetails} />
+                ) : (
+                    <>
+                        {heroMovie && (
+                            <Hero
+                                movie={heroMovie}
+                                onPlay={play}
+                                onMoreInfo={openDetails}
                             />
+                        )}
+
+                        <div className="relative z-10 space-y-10 pt-10 pb-16 md:-mt-20 md:pt-0">
+                            {/* Bilah Filter Studio / Platform Streaming */}
+                            <BrandFilterBar activeProvider={props.provider} />
+
+                            {/* Baris Lanjutkan Menonton */}
+                            <ContinueWatchingRow />
+
+                            {/* Baris 10 Teratas */}
+                            {props.trending?.results &&
+                                props.trending.results.length >= 10 && (
+                                    <Top10Row
+                                        title="10 Teratas Hari Ini"
+                                        movies={props.trending.results}
+                                        onSelect={openDetails}
+                                    />
+                                )}
+
+                            {/* Baris Kategori Rekomendasi */}
+                            {discoveryRows.map(
+                                (row) =>
+                                    row.movies &&
+                                    row.movies.length > 0 && (
+                                        <MovieRow
+                                            key={row.title}
+                                            title={row.title}
+                                            movies={row.movies}
+                                            onSelect={openDetails}
+                                            onHover={(movie, rect) =>
+                                                setHovered({ movie, rect })
+                                            }
+                                        />
+                                    ),
+                            )}
                         </div>
-                    ) : null}
-                </section>
+                    </>
+                )}
             </main>
 
             <Footer />
 
-            {isMovieOpen && selectedMovie ? (
+            {selectedMovie && (
                 <MovieModal
                     key={`${selectedMovie.media_type ?? 'movie'}-${selectedMovie.id}`}
-                    open={isMovieOpen}
+                    open
                     onOpenChange={(open) => {
-                        setIsMovieOpen(open);
-                        if (!open) setSelectedMovie(null);
+                        if (!open) {
+                            setSelectedMovie(null);
+                        }
                     }}
                     movie={selectedMovie}
-                    inMyList={selectedMovie ? isInMyList(selectedMovie) : false}
+                    inMyList={myList.some(
+                        (entry) => entry.id === selectedMovie.id,
+                    )}
                     onToggleMyList={toggleMyList}
                 />
-            ) : null}
+            )}
 
-            {isPublicDomainOpen && selectedPublicDomain ? (
-                <PublicDomainModal
-                    key={selectedPublicDomain.identifier}
-                    open={isPublicDomainOpen}
-                    onOpenChange={(open) => {
-                        setIsPublicDomainOpen(open);
-                        if (!open) setSelectedPublicDomain(null);
-                    }}
-                    item={selectedPublicDomain}
-                />
-            ) : null}
+            <MovieHoverPortal
+                movie={hovered?.movie ?? null}
+                rect={hovered?.rect ?? null}
+                onClose={() => setHovered(null)}
+                onSelect={openDetails}
+                onPlay={play}
+                onAddToList={toggleMyList}
+            />
+        </div>
+    );
+}
+
+function MyListView({
+    list,
+    onSelect,
+}: {
+    list: Movie[];
+    onSelect: (movie: Movie) => void;
+}) {
+    return (
+        <div className="min-h-[60vh] px-4 pt-24 pb-16 md:px-12 lg:px-16">
+            <h1 className="text-2xl font-bold md:text-3xl">Daftar Saya</h1>
+
+            {list.length === 0 ? (
+                <div className="mt-10 max-w-lg rounded-[var(--cinema-radius-panel)] border border-[var(--cinema-line)] bg-[var(--cinema-raised)] px-8 py-12">
+                    <p className="font-semibold">Daftar ini masih kosong</p>
+                    <p className="mt-2 text-sm leading-relaxed text-[var(--cinema-ink-soft)]">
+                        Buka rincian sebuah judul, lalu tekan Tambah ke daftar.
+                        Isinya tersimpan di peramban ini saja.
+                    </p>
+                </div>
+            ) : (
+                <ul className="mt-8 grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+                    {list.map((movie) => (
+                        <li key={movie.id}>
+                            <MovieCard
+                                movie={movie}
+                                onSelect={onSelect}
+                                size="poster"
+                                showTitleBelow
+                                isSearchCard
+                            />
+                        </li>
+                    ))}
+                </ul>
+            )}
         </div>
     );
 }

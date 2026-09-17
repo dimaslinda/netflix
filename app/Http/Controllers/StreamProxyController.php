@@ -101,7 +101,7 @@ class StreamProxyController extends Controller
 
         Log::debug('Rewriting playlist', ['baseUrl' => $baseUrl, 'baseHost' => $baseHost, 'basePath' => $basePath]);
 
-        // FIX: NetMirror returns malformed URLs like "https:///files/..." 
+        // FIX: NetMirror returns malformed URLs like "https:///files/..."
         // Replace all occurrences of https:/// or http:/// with correct base
         $content = preg_replace('#https?:///([^"\s]+)#', self::NETMIRROR_BASE . '/$1', $content);
 
@@ -168,18 +168,80 @@ class StreamProxyController extends Controller
 
     /**
      * Get proxied stream URL for NetMirror content
+     * Supports both NetMirror ID directly or TMDB ID lookup
      */
     public function getProxiedStream(Request $request)
     {
         $id = $request->query('id');
+        $tmdbId = $request->query('tmdb_id');
+        $type = $request->query('type', 'movie'); // movie or tv
 
-        if (empty($id)) {
-            return response()->json(['success' => false, 'error' => 'ID required'], 400);
+        if (empty($id) && empty($tmdbId)) {
+            return response()->json(['success' => false, 'error' => 'ID or TMDB ID required'], 400);
         }
 
         try {
             $scraperApi = app(\App\Services\ScraperApiService::class);
-            $streamData = $scraperApi->getStream($id);
+            $streamData = null;
+            $title = 'NetMirror';
+
+            // If TMDB ID is provided, first get movie info then search NetMirror
+            if ($tmdbId) {
+                Log::info('Looking up TMDB ID', ['tmdb_id' => $tmdbId, 'type' => $type]);
+
+                // Fetch movie/show details from TMDB
+                $tmdbResponse = Http::withHeaders([
+                    'Authorization' => 'Bearer ' . config('services.tmdb.token'),
+                    'Accept' => 'application/json',
+                ])->get(config('services.tmdb.base_url') . "/{$type}/{$tmdbId}");
+
+                if (!$tmdbResponse->successful()) {
+                    return response()->json(['success' => false, 'error' => 'TMDB lookup failed'], 404);
+                }
+
+                $tmdbData = $tmdbResponse->json();
+                $movieTitle = $tmdbData['title'] ?? $tmdbData['name'] ?? '';
+                $movieYear = null;
+
+                if (isset($tmdbData['release_date'])) {
+                    $movieYear = substr($tmdbData['release_date'], 0, 4);
+                } elseif (isset($tmdbData['first_air_date'])) {
+                    $movieYear = substr($tmdbData['first_air_date'], 0, 4);
+                }
+
+                Log::info('TMDB title found', ['title' => $movieTitle, 'year' => $movieYear]);
+
+                if (empty($movieTitle)) {
+                    return response()->json(['success' => false, 'error' => 'Could not get title from TMDB'], 404);
+                }
+
+                // Search NetMirror for this title
+                $match = $scraperApi->findByTitle($movieTitle, $movieYear ? (int)$movieYear : null);
+
+                if (!$match) {
+                    return response()->json([
+                        'success' => false,
+                        'error' => 'Content not found on NetMirror',
+                        'searched_title' => $movieTitle,
+                    ], 404);
+                }
+
+                Log::info('NetMirror match found', ['match' => $match]);
+
+                $title = $match['title'] ?? $match['name'] ?? $movieTitle;
+
+                // Get the NetMirror ID from match
+                $netmirrorId = $match['id'] ?? $match['postId'] ?? null;
+
+                if (!$netmirrorId) {
+                    return response()->json(['success' => false, 'error' => 'No NetMirror ID in match'], 404);
+                }
+
+                $streamData = $scraperApi->getStream($netmirrorId);
+            } else {
+                // Direct NetMirror ID provided
+                $streamData = $scraperApi->getStream($id);
+            }
 
             if (!$streamData) {
                 return response()->json(['success' => false, 'error' => 'Stream not found'], 404);
@@ -188,7 +250,6 @@ class StreamProxyController extends Controller
             Log::info('Stream API response', ['data' => $streamData]);
 
             $hlsUrl = null;
-            $title = 'NetMirror';
             $sources = [];
 
             // Check if sources are directly in API response
@@ -197,7 +258,7 @@ class StreamProxyController extends Controller
             if (isset($data['sources']) && is_array($data['sources'])) {
                 // Sources directly available
                 $sources = $data['sources'];
-                $title = $data['title'] ?? 'NetMirror';
+                $title = $data['title'] ?? $title;
             } elseif (isset($data['playlistUrl'])) {
                 // Need to fetch playlist.php
                 $playlistPhpUrl = $data['playlistUrl'];
@@ -214,10 +275,10 @@ class StreamProxyController extends Controller
                     // Handle array or object response
                     if (is_array($playlistData) && isset($playlistData[0])) {
                         $item = $playlistData[0];
-                        $title = $item['title'] ?? 'NetMirror';
+                        $title = $item['title'] ?? $title;
                         $sources = $item['sources'] ?? [];
                     } elseif (isset($playlistData['sources'])) {
-                        $title = $playlistData['title'] ?? 'NetMirror';
+                        $title = $playlistData['title'] ?? $title;
                         $sources = $playlistData['sources'];
                     }
                 }
@@ -259,7 +320,7 @@ class StreamProxyController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Proxied stream error', ['id' => $id, 'error' => $e->getMessage()]);
+            Log::error('Proxied stream error', ['id' => $id, 'tmdb_id' => $tmdbId ?? null, 'error' => $e->getMessage()]);
             return response()->json(['success' => false, 'error' => 'Server error: ' . $e->getMessage()], 500);
         }
     }

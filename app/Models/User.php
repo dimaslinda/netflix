@@ -22,6 +22,8 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'avatar',
+        'pin',
     ];
 
     /**
@@ -31,10 +33,20 @@ class User extends Authenticatable
      */
     protected $hidden = [
         'password',
+        'pin',
         'two_factor_secret',
         'two_factor_recovery_codes',
         'remember_token',
     ];
+
+    protected $appends = [
+        'has_pin',
+    ];
+
+    public function getHasPinAttribute(): bool
+    {
+        return !empty($this->pin);
+    }
 
     /**
      * Get the attributes that should be cast.
@@ -48,5 +60,15 @@ class User extends Authenticatable
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
         ];
+    }
+
+    public function watchHistories(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(WatchHistory::class)->orderByDesc('last_watched_at');
+    }
+
+    public function bookmarks(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(UserBookmark::class)->orderByDesc('created_at');
     }
 }
