@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../wayfinder'
 /**
 * @see \App\Http\Controllers\MovieController::category
- * @see app/Http/Controllers/MovieController.php:152
+ * @see app/Http/Controllers/MovieController.php:169
  * @route '/browse/{category}'
  */
 export const category = (args: { category: string | number } | [category: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ category.definition = {
 
 /**
 * @see \App\Http\Controllers\MovieController::category
- * @see app/Http/Controllers/MovieController.php:152
+ * @see app/Http/Controllers/MovieController.php:169
  * @route '/browse/{category}'
  */
 category.url = (args: { category: string | number } | [category: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -44,7 +44,7 @@ category.url = (args: { category: string | number } | [category: string | number
 
 /**
 * @see \App\Http\Controllers\MovieController::category
- * @see app/Http/Controllers/MovieController.php:152
+ * @see app/Http/Controllers/MovieController.php:169
  * @route '/browse/{category}'
  */
 category.get = (args: { category: string | number } | [category: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -53,7 +53,7 @@ category.get = (args: { category: string | number } | [category: string | number
 })
 /**
 * @see \App\Http\Controllers\MovieController::category
- * @see app/Http/Controllers/MovieController.php:152
+ * @see app/Http/Controllers/MovieController.php:169
  * @route '/browse/{category}'
  */
 category.head = (args: { category: string | number } | [category: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -63,7 +63,7 @@ category.head = (args: { category: string | number } | [category: string | numbe
 
     /**
 * @see \App\Http\Controllers\MovieController::category
- * @see app/Http/Controllers/MovieController.php:152
+ * @see app/Http/Controllers/MovieController.php:169
  * @route '/browse/{category}'
  */
     const categoryForm = (args: { category: string | number } | [category: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -73,7 +73,7 @@ category.head = (args: { category: string | number } | [category: string | numbe
 
             /**
 * @see \App\Http\Controllers\MovieController::category
- * @see app/Http/Controllers/MovieController.php:152
+ * @see app/Http/Controllers/MovieController.php:169
  * @route '/browse/{category}'
  */
         categoryForm.get = (args: { category: string | number } | [category: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -82,7 +82,7 @@ category.head = (args: { category: string | number } | [category: string | numbe
         })
             /**
 * @see \App\Http\Controllers\MovieController::category
- * @see app/Http/Controllers/MovieController.php:152
+ * @see app/Http/Controllers/MovieController.php:169
  * @route '/browse/{category}'
  */
         categoryForm.head = (args: { category: string | number } | [category: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

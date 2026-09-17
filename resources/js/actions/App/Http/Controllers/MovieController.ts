@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\MovieController::index
- * @see app/Http/Controllers/MovieController.php:18
+ * @see app/Http/Controllers/MovieController.php:19
  * @route '/'
  */
 export const index = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ index.definition = {
 
 /**
 * @see \App\Http\Controllers\MovieController::index
- * @see app/Http/Controllers/MovieController.php:18
+ * @see app/Http/Controllers/MovieController.php:19
  * @route '/'
  */
 index.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ index.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\MovieController::index
- * @see app/Http/Controllers/MovieController.php:18
+ * @see app/Http/Controllers/MovieController.php:19
  * @route '/'
  */
 index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -34,7 +34,7 @@ index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\MovieController::index
- * @see app/Http/Controllers/MovieController.php:18
+ * @see app/Http/Controllers/MovieController.php:19
  * @route '/'
  */
 index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -44,7 +44,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\MovieController::index
- * @see app/Http/Controllers/MovieController.php:18
+ * @see app/Http/Controllers/MovieController.php:19
  * @route '/'
  */
     const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -54,7 +54,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\MovieController::index
- * @see app/Http/Controllers/MovieController.php:18
+ * @see app/Http/Controllers/MovieController.php:19
  * @route '/'
  */
         indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -63,7 +63,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\MovieController::index
- * @see app/Http/Controllers/MovieController.php:18
+ * @see app/Http/Controllers/MovieController.php:19
  * @route '/'
  */
         indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -79,7 +79,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     index.form = indexForm
 /**
 * @see \App\Http\Controllers\MovieController::searchPage
- * @see app/Http/Controllers/MovieController.php:94
+ * @see app/Http/Controllers/MovieController.php:111
  * @route '/search'
  */
 export const searchPage = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -94,7 +94,7 @@ searchPage.definition = {
 
 /**
 * @see \App\Http\Controllers\MovieController::searchPage
- * @see app/Http/Controllers/MovieController.php:94
+ * @see app/Http/Controllers/MovieController.php:111
  * @route '/search'
  */
 searchPage.url = (options?: RouteQueryOptions) => {
@@ -103,7 +103,7 @@ searchPage.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\MovieController::searchPage
- * @see app/Http/Controllers/MovieController.php:94
+ * @see app/Http/Controllers/MovieController.php:111
  * @route '/search'
  */
 searchPage.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -112,7 +112,7 @@ searchPage.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\MovieController::searchPage
- * @see app/Http/Controllers/MovieController.php:94
+ * @see app/Http/Controllers/MovieController.php:111
  * @route '/search'
  */
 searchPage.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -122,7 +122,7 @@ searchPage.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\MovieController::searchPage
- * @see app/Http/Controllers/MovieController.php:94
+ * @see app/Http/Controllers/MovieController.php:111
  * @route '/search'
  */
     const searchPageForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -132,7 +132,7 @@ searchPage.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\MovieController::searchPage
- * @see app/Http/Controllers/MovieController.php:94
+ * @see app/Http/Controllers/MovieController.php:111
  * @route '/search'
  */
         searchPageForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -141,7 +141,7 @@ searchPage.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\MovieController::searchPage
- * @see app/Http/Controllers/MovieController.php:94
+ * @see app/Http/Controllers/MovieController.php:111
  * @route '/search'
  */
         searchPageForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -157,7 +157,7 @@ searchPage.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     searchPage.form = searchPageForm
 /**
 * @see \App\Http\Controllers\MovieController::search
- * @see app/Http/Controllers/MovieController.php:77
+ * @see app/Http/Controllers/MovieController.php:94
  * @route '/api/tmdb/search'
  */
 export const search = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -172,7 +172,7 @@ search.definition = {
 
 /**
 * @see \App\Http\Controllers\MovieController::search
- * @see app/Http/Controllers/MovieController.php:77
+ * @see app/Http/Controllers/MovieController.php:94
  * @route '/api/tmdb/search'
  */
 search.url = (options?: RouteQueryOptions) => {
@@ -181,7 +181,7 @@ search.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\MovieController::search
- * @see app/Http/Controllers/MovieController.php:77
+ * @see app/Http/Controllers/MovieController.php:94
  * @route '/api/tmdb/search'
  */
 search.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -190,7 +190,7 @@ search.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\MovieController::search
- * @see app/Http/Controllers/MovieController.php:77
+ * @see app/Http/Controllers/MovieController.php:94
  * @route '/api/tmdb/search'
  */
 search.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -200,7 +200,7 @@ search.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\MovieController::search
- * @see app/Http/Controllers/MovieController.php:77
+ * @see app/Http/Controllers/MovieController.php:94
  * @route '/api/tmdb/search'
  */
     const searchForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -210,7 +210,7 @@ search.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\MovieController::search
- * @see app/Http/Controllers/MovieController.php:77
+ * @see app/Http/Controllers/MovieController.php:94
  * @route '/api/tmdb/search'
  */
         searchForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -219,7 +219,7 @@ search.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\MovieController::search
- * @see app/Http/Controllers/MovieController.php:77
+ * @see app/Http/Controllers/MovieController.php:94
  * @route '/api/tmdb/search'
  */
         searchForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -235,7 +235,7 @@ search.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     search.form = searchForm
 /**
 * @see \App\Http\Controllers\MovieController::details
- * @see app/Http/Controllers/MovieController.php:111
+ * @see app/Http/Controllers/MovieController.php:128
  * @route '/api/tmdb/{type}/{id}'
  */
 export const details = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -250,7 +250,7 @@ details.definition = {
 
 /**
 * @see \App\Http\Controllers\MovieController::details
- * @see app/Http/Controllers/MovieController.php:111
+ * @see app/Http/Controllers/MovieController.php:128
  * @route '/api/tmdb/{type}/{id}'
  */
 details.url = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions) => {
@@ -276,7 +276,7 @@ details.url = (args: { type: string | number, id: string | number } | [type: str
 
 /**
 * @see \App\Http\Controllers\MovieController::details
- * @see app/Http/Controllers/MovieController.php:111
+ * @see app/Http/Controllers/MovieController.php:128
  * @route '/api/tmdb/{type}/{id}'
  */
 details.get = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -285,7 +285,7 @@ details.get = (args: { type: string | number, id: string | number } | [type: str
 })
 /**
 * @see \App\Http\Controllers\MovieController::details
- * @see app/Http/Controllers/MovieController.php:111
+ * @see app/Http/Controllers/MovieController.php:128
  * @route '/api/tmdb/{type}/{id}'
  */
 details.head = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -295,7 +295,7 @@ details.head = (args: { type: string | number, id: string | number } | [type: st
 
     /**
 * @see \App\Http\Controllers\MovieController::details
- * @see app/Http/Controllers/MovieController.php:111
+ * @see app/Http/Controllers/MovieController.php:128
  * @route '/api/tmdb/{type}/{id}'
  */
     const detailsForm = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -305,7 +305,7 @@ details.head = (args: { type: string | number, id: string | number } | [type: st
 
             /**
 * @see \App\Http\Controllers\MovieController::details
- * @see app/Http/Controllers/MovieController.php:111
+ * @see app/Http/Controllers/MovieController.php:128
  * @route '/api/tmdb/{type}/{id}'
  */
         detailsForm.get = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -314,7 +314,7 @@ details.head = (args: { type: string | number, id: string | number } | [type: st
         })
             /**
 * @see \App\Http\Controllers\MovieController::details
- * @see app/Http/Controllers/MovieController.php:111
+ * @see app/Http/Controllers/MovieController.php:128
  * @route '/api/tmdb/{type}/{id}'
  */
         detailsForm.head = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -330,7 +330,7 @@ details.head = (args: { type: string | number, id: string | number } | [type: st
     details.form = detailsForm
 /**
 * @see \App\Http\Controllers\MovieController::videos
- * @see app/Http/Controllers/MovieController.php:129
+ * @see app/Http/Controllers/MovieController.php:146
  * @route '/api/tmdb/{type}/{id}/videos'
  */
 export const videos = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -345,7 +345,7 @@ videos.definition = {
 
 /**
 * @see \App\Http\Controllers\MovieController::videos
- * @see app/Http/Controllers/MovieController.php:129
+ * @see app/Http/Controllers/MovieController.php:146
  * @route '/api/tmdb/{type}/{id}/videos'
  */
 videos.url = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions) => {
@@ -371,7 +371,7 @@ videos.url = (args: { type: string | number, id: string | number } | [type: stri
 
 /**
 * @see \App\Http\Controllers\MovieController::videos
- * @see app/Http/Controllers/MovieController.php:129
+ * @see app/Http/Controllers/MovieController.php:146
  * @route '/api/tmdb/{type}/{id}/videos'
  */
 videos.get = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -380,7 +380,7 @@ videos.get = (args: { type: string | number, id: string | number } | [type: stri
 })
 /**
 * @see \App\Http\Controllers\MovieController::videos
- * @see app/Http/Controllers/MovieController.php:129
+ * @see app/Http/Controllers/MovieController.php:146
  * @route '/api/tmdb/{type}/{id}/videos'
  */
 videos.head = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -390,7 +390,7 @@ videos.head = (args: { type: string | number, id: string | number } | [type: str
 
     /**
 * @see \App\Http\Controllers\MovieController::videos
- * @see app/Http/Controllers/MovieController.php:129
+ * @see app/Http/Controllers/MovieController.php:146
  * @route '/api/tmdb/{type}/{id}/videos'
  */
     const videosForm = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -400,7 +400,7 @@ videos.head = (args: { type: string | number, id: string | number } | [type: str
 
             /**
 * @see \App\Http\Controllers\MovieController::videos
- * @see app/Http/Controllers/MovieController.php:129
+ * @see app/Http/Controllers/MovieController.php:146
  * @route '/api/tmdb/{type}/{id}/videos'
  */
         videosForm.get = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -409,7 +409,7 @@ videos.head = (args: { type: string | number, id: string | number } | [type: str
         })
             /**
 * @see \App\Http\Controllers\MovieController::videos
- * @see app/Http/Controllers/MovieController.php:129
+ * @see app/Http/Controllers/MovieController.php:146
  * @route '/api/tmdb/{type}/{id}/videos'
  */
         videosForm.head = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -425,7 +425,7 @@ videos.head = (args: { type: string | number, id: string | number } | [type: str
     videos.form = videosForm
 /**
 * @see \App\Http\Controllers\MovieController::tvSeason
- * @see app/Http/Controllers/MovieController.php:145
+ * @see app/Http/Controllers/MovieController.php:162
  * @route '/api/tmdb/tv/{id}/season/{season}'
  */
 export const tvSeason = (args: { id: string | number, season: string | number } | [id: string | number, season: string | number ], options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -440,7 +440,7 @@ tvSeason.definition = {
 
 /**
 * @see \App\Http\Controllers\MovieController::tvSeason
- * @see app/Http/Controllers/MovieController.php:145
+ * @see app/Http/Controllers/MovieController.php:162
  * @route '/api/tmdb/tv/{id}/season/{season}'
  */
 tvSeason.url = (args: { id: string | number, season: string | number } | [id: string | number, season: string | number ], options?: RouteQueryOptions) => {
@@ -466,7 +466,7 @@ tvSeason.url = (args: { id: string | number, season: string | number } | [id: st
 
 /**
 * @see \App\Http\Controllers\MovieController::tvSeason
- * @see app/Http/Controllers/MovieController.php:145
+ * @see app/Http/Controllers/MovieController.php:162
  * @route '/api/tmdb/tv/{id}/season/{season}'
  */
 tvSeason.get = (args: { id: string | number, season: string | number } | [id: string | number, season: string | number ], options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -475,7 +475,7 @@ tvSeason.get = (args: { id: string | number, season: string | number } | [id: st
 })
 /**
 * @see \App\Http\Controllers\MovieController::tvSeason
- * @see app/Http/Controllers/MovieController.php:145
+ * @see app/Http/Controllers/MovieController.php:162
  * @route '/api/tmdb/tv/{id}/season/{season}'
  */
 tvSeason.head = (args: { id: string | number, season: string | number } | [id: string | number, season: string | number ], options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -485,7 +485,7 @@ tvSeason.head = (args: { id: string | number, season: string | number } | [id: s
 
     /**
 * @see \App\Http\Controllers\MovieController::tvSeason
- * @see app/Http/Controllers/MovieController.php:145
+ * @see app/Http/Controllers/MovieController.php:162
  * @route '/api/tmdb/tv/{id}/season/{season}'
  */
     const tvSeasonForm = (args: { id: string | number, season: string | number } | [id: string | number, season: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -495,7 +495,7 @@ tvSeason.head = (args: { id: string | number, season: string | number } | [id: s
 
             /**
 * @see \App\Http\Controllers\MovieController::tvSeason
- * @see app/Http/Controllers/MovieController.php:145
+ * @see app/Http/Controllers/MovieController.php:162
  * @route '/api/tmdb/tv/{id}/season/{season}'
  */
         tvSeasonForm.get = (args: { id: string | number, season: string | number } | [id: string | number, season: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -504,7 +504,7 @@ tvSeason.head = (args: { id: string | number, season: string | number } | [id: s
         })
             /**
 * @see \App\Http\Controllers\MovieController::tvSeason
- * @see app/Http/Controllers/MovieController.php:145
+ * @see app/Http/Controllers/MovieController.php:162
  * @route '/api/tmdb/tv/{id}/season/{season}'
  */
         tvSeasonForm.head = (args: { id: string | number, season: string | number } | [id: string | number, season: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -520,7 +520,7 @@ tvSeason.head = (args: { id: string | number, season: string | number } | [id: s
     tvSeason.form = tvSeasonForm
 /**
 * @see \App\Http\Controllers\MovieController::browseCategory
- * @see app/Http/Controllers/MovieController.php:152
+ * @see app/Http/Controllers/MovieController.php:169
  * @route '/browse/{category}'
  */
 export const browseCategory = (args: { category: string | number } | [category: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -535,7 +535,7 @@ browseCategory.definition = {
 
 /**
 * @see \App\Http\Controllers\MovieController::browseCategory
- * @see app/Http/Controllers/MovieController.php:152
+ * @see app/Http/Controllers/MovieController.php:169
  * @route '/browse/{category}'
  */
 browseCategory.url = (args: { category: string | number } | [category: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -563,7 +563,7 @@ browseCategory.url = (args: { category: string | number } | [category: string | 
 
 /**
 * @see \App\Http\Controllers\MovieController::browseCategory
- * @see app/Http/Controllers/MovieController.php:152
+ * @see app/Http/Controllers/MovieController.php:169
  * @route '/browse/{category}'
  */
 browseCategory.get = (args: { category: string | number } | [category: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -572,7 +572,7 @@ browseCategory.get = (args: { category: string | number } | [category: string | 
 })
 /**
 * @see \App\Http\Controllers\MovieController::browseCategory
- * @see app/Http/Controllers/MovieController.php:152
+ * @see app/Http/Controllers/MovieController.php:169
  * @route '/browse/{category}'
  */
 browseCategory.head = (args: { category: string | number } | [category: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -582,7 +582,7 @@ browseCategory.head = (args: { category: string | number } | [category: string |
 
     /**
 * @see \App\Http\Controllers\MovieController::browseCategory
- * @see app/Http/Controllers/MovieController.php:152
+ * @see app/Http/Controllers/MovieController.php:169
  * @route '/browse/{category}'
  */
     const browseCategoryForm = (args: { category: string | number } | [category: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -592,7 +592,7 @@ browseCategory.head = (args: { category: string | number } | [category: string |
 
             /**
 * @see \App\Http\Controllers\MovieController::browseCategory
- * @see app/Http/Controllers/MovieController.php:152
+ * @see app/Http/Controllers/MovieController.php:169
  * @route '/browse/{category}'
  */
         browseCategoryForm.get = (args: { category: string | number } | [category: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -601,7 +601,7 @@ browseCategory.head = (args: { category: string | number } | [category: string |
         })
             /**
 * @see \App\Http\Controllers\MovieController::browseCategory
- * @see app/Http/Controllers/MovieController.php:152
+ * @see app/Http/Controllers/MovieController.php:169
  * @route '/browse/{category}'
  */
         browseCategoryForm.head = (args: { category: string | number } | [category: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

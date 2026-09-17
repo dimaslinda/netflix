@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\TmdbService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 
 class MovieController extends Controller
@@ -39,39 +40,55 @@ class MovieController extends Controller
             );
         }
 
-        // Koleksi khusus Disney & Pixar untuk beranda
-        $disneyId = $this->tmdbService->findProviderIdByName('Disney', $region);
-        $disneyCollection = $disneyId ? $this->tmdbService->getTrending($disneyId, $region, 1) : null;
+        $cacheKey = 'home_catalog_v1_' . ($providerKey ?: 'all') . "_{$region}_{$page}";
 
-        return Inertia::render('Home', [
+        $catalog = Cache::remember($cacheKey, 1800, function () use ($providerId, $region, $page) {
+            $disneyId = $this->tmdbService->findProviderIdByName('Disney', $region);
+            $disneyCollection = $disneyId ? $this->tmdbService->getTrending($disneyId, $region, 1) : null;
+
+            return [
+                'disneyCollection' => $disneyCollection,
+                // Main categories
+                'trending' => $this->tmdbService->getTrending($providerId, $region, $page),
+                'topRated' => $this->tmdbService->getTopRated($providerId, $region, $page),
+                'trendingTv' => $this->tmdbService->getTrendingTv($providerId, $region, $page),
+                'topRatedTv' => $this->tmdbService->getTopRatedTv($providerId, $region, $page),
+                // Movie genres
+                'actionMovies' => $this->tmdbService->getActionMovies($providerId, $region, $page),
+                'comedyMovies' => $this->tmdbService->getComedyMovies($providerId, $region, $page),
+                'horrorMovies' => $this->tmdbService->getHorrorMovies($providerId, $region, $page),
+                'romanceMovies' => $this->tmdbService->getRomanceMovies($providerId, $region, $page),
+                'documentaries' => $this->tmdbService->getDocumentaries($providerId, $region, $page),
+                'animationMovies' => $this->tmdbService->getAnimationMovies($providerId, $region, $page),
+                'animeMovies' => $this->tmdbService->getAnimeMovies($providerId, $region, $page),
+                // New categories
+                'thrillerMovies' => $this->tmdbService->getThrillerMovies($providerId, $region, $page),
+                'sciFiMovies' => $this->tmdbService->getSciFiMovies($providerId, $region, $page),
+                'dramaMovies' => $this->tmdbService->getDramaMovies($providerId, $region, $page),
+                'crimeMovies' => $this->tmdbService->getCrimeMovies($providerId, $region, $page),
+                'familyMovies' => $this->tmdbService->getFamilyMovies($providerId, $region, $page),
+                'fantasyMovies' => $this->tmdbService->getFantasyMovies($providerId, $region, $page),
+                'mysteryMovies' => $this->tmdbService->getMysteryMovies($providerId, $region, $page),
+                'koreanContent' => $this->tmdbService->getKoreanContent($providerId, $region, $page),
+                'popularTv' => $this->tmdbService->getPopularTv($page),
+                'nowPlaying' => $this->tmdbService->getNowPlaying($page),
+            ];
+        });
+
+        $response = Inertia::render('Home', array_merge([
             'provider' => $providerKey,
-            'disneyCollection' => $disneyCollection,
             'page' => $page,
-            // Main categories
-            'trending' => $this->tmdbService->getTrending($providerId, $region, $page),
-            'topRated' => $this->tmdbService->getTopRated($providerId, $region, $page),
-            'trendingTv' => $this->tmdbService->getTrendingTv($providerId, $region, $page),
-            'topRatedTv' => $this->tmdbService->getTopRatedTv($providerId, $region, $page),
-            // Movie genres
-            'actionMovies' => $this->tmdbService->getActionMovies($providerId, $region, $page),
-            'comedyMovies' => $this->tmdbService->getComedyMovies($providerId, $region, $page),
-            'horrorMovies' => $this->tmdbService->getHorrorMovies($providerId, $region, $page),
-            'romanceMovies' => $this->tmdbService->getRomanceMovies($providerId, $region, $page),
-            'documentaries' => $this->tmdbService->getDocumentaries($providerId, $region, $page),
-            'animationMovies' => $this->tmdbService->getAnimationMovies($providerId, $region, $page),
-            'animeMovies' => $this->tmdbService->getAnimeMovies($providerId, $region, $page),
-            // New categories
-            'thrillerMovies' => $this->tmdbService->getThrillerMovies($providerId, $region, $page),
-            'sciFiMovies' => $this->tmdbService->getSciFiMovies($providerId, $region, $page),
-            'dramaMovies' => $this->tmdbService->getDramaMovies($providerId, $region, $page),
-            'crimeMovies' => $this->tmdbService->getCrimeMovies($providerId, $region, $page),
-            'familyMovies' => $this->tmdbService->getFamilyMovies($providerId, $region, $page),
-            'fantasyMovies' => $this->tmdbService->getFantasyMovies($providerId, $region, $page),
-            'mysteryMovies' => $this->tmdbService->getMysteryMovies($providerId, $region, $page),
-            'koreanContent' => $this->tmdbService->getKoreanContent($providerId, $region, $page),
-            'popularTv' => $this->tmdbService->getPopularTv($page),
-            'nowPlaying' => $this->tmdbService->getNowPlaying($page),
-        ]);
+        ], $catalog));
+
+        // Untuk pengunjung umum (belum login), izinkan CDN Vercel Edge untuk meng-cache halaman langsung di node terdekat
+        if (! $request->user()) {
+            $httpResponse = $response->toResponse($request);
+            $httpResponse->headers->set('Cache-Control', 'public, max-age=0, s-maxage=120, stale-while-revalidate=600');
+
+            return $httpResponse;
+        }
+
+        return $response;
     }
 
     public function search(Request $request)

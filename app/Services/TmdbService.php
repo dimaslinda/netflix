@@ -505,6 +505,26 @@ class TmdbService
 
     public function findProviderIdByName(string $name, string $region = 'ID', string $type = 'movie'): ?int
     {
+        $staticMap = [
+            'netflix' => 8,
+            'amazon prime video' => 119,
+            'prime' => 119,
+            'disney' => 390,
+            'disney+' => 390,
+            'disney+ hotstar' => 390,
+            'apple tv' => 350,
+            'apple' => 350,
+            'viu' => 158,
+            'vidio' => 307,
+            'hbo max' => 384,
+            'max' => 384,
+        ];
+
+        $needle = mb_strtolower(trim($name));
+        if (isset($staticMap[$needle])) {
+            return $staticMap[$needle];
+        }
+
         $data = $this->getWatchProviders($type, $region);
         $results = $data['results'] ?? [];
 
