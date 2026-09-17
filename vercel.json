@@ -9,6 +9,11 @@
             "runtime": "vercel-php@0.9.0",
             "memory": 1024,
             "maxDuration": 15
+        },
+        "api/migrate.php": {
+            "runtime": "vercel-php@0.9.0",
+            "memory": 1024,
+            "maxDuration": 30
         }
     },
     "routes": [
@@ -25,6 +30,10 @@
                 "cache-control": "public, max-age=86400, stale-while-revalidate=604800"
             },
             "dest": "/$1"
+        },
+        {
+            "src": "/api/migrate",
+            "dest": "/api/migrate.php"
         },
         {
             "src": "/(.*)",
