@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" width="240" height="80">
+  <rect width="240" height="80" rx="12" fill="#06381D"/>
+  <rect x="25" y="18" width="44" height="44" rx="8" fill="#009640"/>
+  <text x="36" y="51" fill="#FFFFFF" font-family="Montserrat, Arial, sans-serif" font-weight="900" font-size="34">9</text>
+  <text x="80" y="43" fill="#FFFFFF" font-family="Montserrat, Arial, sans-serif" font-weight="900" font-size="28">TV9</text>
+  <text x="81" y="61" fill="#48BB78" font-family="Montserrat, Arial, sans-serif" font-weight="800" font-size="14" letter-spacing="2">NUSANTARA</text>
+</svg>

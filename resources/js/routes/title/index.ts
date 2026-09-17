@@ -1,6 +1,6 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../wayfinder'
 /**
- * @see routes/web.php:37
+ * @see routes/web.php:40
  * @route '/title/{type}/{id}'
  */
 export const show = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -14,7 +14,7 @@ show.definition = {
 } satisfies RouteDefinition<["get","head"]>
 
 /**
- * @see routes/web.php:37
+ * @see routes/web.php:40
  * @route '/title/{type}/{id}'
  */
 show.url = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions) => {
@@ -39,7 +39,7 @@ show.url = (args: { type: string | number, id: string | number } | [type: string
 }
 
 /**
- * @see routes/web.php:37
+ * @see routes/web.php:40
  * @route '/title/{type}/{id}'
  */
 show.get = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -47,7 +47,7 @@ show.get = (args: { type: string | number, id: string | number } | [type: string
     method: 'get',
 })
 /**
- * @see routes/web.php:37
+ * @see routes/web.php:40
  * @route '/title/{type}/{id}'
  */
 show.head = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -56,7 +56,7 @@ show.head = (args: { type: string | number, id: string | number } | [type: strin
 })
 
     /**
- * @see routes/web.php:37
+ * @see routes/web.php:40
  * @route '/title/{type}/{id}'
  */
     const showForm = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -65,7 +65,7 @@ show.head = (args: { type: string | number, id: string | number } | [type: strin
     })
 
             /**
- * @see routes/web.php:37
+ * @see routes/web.php:40
  * @route '/title/{type}/{id}'
  */
         showForm.get = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -73,7 +73,7 @@ show.head = (args: { type: string | number, id: string | number } | [type: strin
             method: 'get',
         })
             /**
- * @see routes/web.php:37
+ * @see routes/web.php:40
  * @route '/title/{type}/{id}'
  */
         showForm.head = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

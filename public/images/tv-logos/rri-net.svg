@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" width="240" height="80">
+  <rect width="240" height="80" rx="12" fill="#031B4E"/>
+  <circle cx="45" cy="40" r="24" fill="#0056B3"/>
+  <text x="28" y="47" fill="#FFFFFF" font-family="Montserrat, Arial, sans-serif" font-weight="900" font-size="20">RRI</text>
+  <text x="80" y="44" fill="#FFFFFF" font-family="Montserrat, Arial, sans-serif" font-weight="900" font-size="28" letter-spacing="1">RRI NET</text>
+  <text x="82" y="62" fill="#38EF7D" font-family="Montserrat, Arial, sans-serif" font-weight="700" font-size="13" letter-spacing="2">TONTON YANG ANDA DENGAR</text>
+</svg>

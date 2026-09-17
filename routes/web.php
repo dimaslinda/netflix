@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ArchiveController;
+use App\Http\Controllers\LiveTvController;
 use App\Http\Controllers\LocalMediaController;
 use App\Http\Controllers\MovieController;
 use App\Http\Controllers\PlaybackController;
@@ -11,6 +12,8 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', [MovieController::class, 'index'])->name('home');
+Route::get('/live-tv', [LiveTvController::class, 'index'])->name('live-tv');
+Route::get('/api/live-tv/channels', [LiveTvController::class, 'channels'])->name('api.live-tv.channels');
 
 Route::prefix('api/user')->group(function () {
     Route::get('watch-history', [UserAccountController::class, 'getWatchHistory'])->name('user.history.get');

@@ -32,6 +32,7 @@ const PRIMARY_LINKS = [
     { label: 'Film', href: '/browse/trending' },
     { label: 'Serial', href: '/browse/popular-tv' },
     { label: 'Anak-anak', href: '/browse/kids' },
+    { label: 'Live TV', href: '/live-tv', isLive: true },
     { label: 'Baru Tayang', href: '/browse/now-playing' },
     { label: 'Daftar Saya', href: '/account?tab=bookmarks' },
 ] as const;
@@ -62,95 +63,91 @@ export default function Navbar({ activePath }: NavbarProps) {
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const profileRef = useRef<HTMLDivElement>(null);
 
-    // Tutup dropdown profil saat mengeklik di luar elemen
+    // Pantau scroll untuk memberi latar belakang pekat saat halaman bergeser
     useEffect(() => {
-        if (!isProfileOpen) return;
-        const handleClickOutside = (e: MouseEvent) => {
+        const handleScroll = () => {
+            setIsScrolled(window.scrollY > 10);
+        };
+
+        handleScroll();
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
+    // Tutup dropdown profil jika pengguna mengeklik di luar area
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
             if (
                 profileRef.current &&
-                !profileRef.current.contains(e.target as Node)
+                !profileRef.current.contains(event.target as Node)
             ) {
                 setIsProfileOpen(false);
             }
         };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () =>
+
+        if (isProfileOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => {
             document.removeEventListener('mousedown', handleClickOutside);
+        };
     }, [isProfileOpen]);
 
-    // Bilah atas tembus pandang di puncak halaman supaya seni kunci hero utuh,
-    // lalu memadat begitu pemirsa menggulir agar tautan tetap terbaca.
+    // Kunci scroll halaman utama ketika laci menu mobile sedang terbuka
     useEffect(() => {
-        const handleScroll = () => setIsScrolled(window.scrollY > 24);
-
-        handleScroll();
-        window.addEventListener('scroll', handleScroll, { passive: true });
-
-        return () => window.removeEventListener('scroll', handleScroll);
-    }, []);
-
-    // Menu geser menahan gulir halaman di belakangnya, dan tertutup dengan
-    // Escape seperti dialog mana pun.
-    useEffect(() => {
-        if (!isMenuOpen) {
-            return;
+        if (isMenuOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
         }
-
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                setIsMenuOpen(false);
-            }
-        };
-
-        document.body.style.overflow = 'hidden';
-        window.addEventListener('keydown', handleKeyDown);
-
         return () => {
             document.body.style.overflow = '';
-            window.removeEventListener('keydown', handleKeyDown);
         };
     }, [isMenuOpen]);
 
-    const currentPath =
+    const resolvedActivePath =
         activePath ??
-        (typeof window === 'undefined'
-            ? '/'
-            : window.location.pathname + window.location.search);
+        (typeof window !== 'undefined' ? window.location.pathname : '/');
+
+    const handleLogout = () => {
+        router.post('/logout');
+    };
 
     return (
         <>
             <header
                 className={cn(
-                    'fixed inset-x-0 top-0 z-50 transition-colors duration-300',
+                    'fixed top-0 z-50 flex h-16 w-full items-center transition-colors duration-300',
                     isScrolled
-                        ? 'bg-[var(--cinema-base)]/95 backdrop-blur-md'
-                        : 'bg-gradient-to-b from-black/80 to-transparent',
+                        ? 'bg-[var(--cinema-base)]/95 shadow-md backdrop-blur-md'
+                        : 'bg-gradient-to-b from-black/80 via-black/40 to-transparent',
                 )}
             >
                 <nav
-                    aria-label="Navigasi utama"
-                    className="flex h-16 items-center gap-6 px-4 md:h-[68px] md:px-12 lg:px-16"
+                    aria-label="Navigasi Utama"
+                    className="flex w-full items-center px-4 md:px-12 lg:px-16"
                 >
-                    <Link
-                        href="/"
-                        aria-label="Ke beranda"
-                        className="cinema-focus shrink-0"
-                    >
-                        <BrandMark />
-                    </Link>
+                    <BrandMark />
 
-                    <ul className="hidden items-center gap-6 lg:flex">
+                    {/* Navigasi Desktop */}
+                    <ul className="ml-8 hidden items-center gap-5 lg:flex">
                         {PRIMARY_LINKS.map((link) => (
                             <li key={link.href}>
                                 <Link
                                     href={link.href}
                                     className={cn(
-                                        'cinema-focus text-[13px] font-medium transition-colors',
-                                        currentPath === link.href
-                                            ? 'text-[var(--cinema-ink)]'
+                                        'cinema-focus flex items-center rounded-sm text-sm transition',
+                                        resolvedActivePath === link.href
+                                            ? 'text-[var(--cinema-ink)] font-bold'
                                             : 'text-[var(--cinema-ink-soft)] hover:text-[var(--cinema-ink)]',
                                     )}
                                 >
+                                    {'isLive' in link && link.isLive && (
+                                        <span className="mr-1.5 flex h-2 w-2 relative">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600" />
+                                        </span>
+                                    )}
                                     {link.label}
                                 </Link>
                             </li>
@@ -247,56 +244,53 @@ export default function Navbar({ activePath }: NavbarProps) {
                                         <div className="border-t border-white/10 pt-1">
                                             <button
                                                 type="button"
-                                                onClick={() => {
-                                                    setIsProfileOpen(false);
-                                                    router.post('/logout');
-                                                }}
-                                                className="flex w-full items-center gap-2.5 rounded px-3 py-2 text-left text-xs font-medium text-red-400 transition hover:bg-red-500/10 hover:text-red-300"
+                                                onClick={handleLogout}
+                                                className="flex w-full items-center gap-2.5 rounded px-3 py-2 text-xs font-medium text-red-400 transition hover:bg-red-500/10 hover:text-red-300"
                                             >
                                                 <LogOut className="h-4 w-4" />
-                                                <span>Keluar</span>
+                                                <span>Keluar dari Netflix</span>
                                             </button>
                                         </div>
                                     </div>
                                 )}
                             </div>
                         ) : (
-                            <div className="flex items-center gap-2">
-                                <Link
-                                    href="/login"
-                                    className="cinema-focus flex min-h-[36px] items-center justify-center rounded bg-[#E50914] px-4 py-1.5 text-xs font-bold text-white transition hover:bg-red-700 active:scale-95"
-                                >
-                                    Masuk
-                                </Link>
-                            </div>
+                            <Link
+                                href="/login"
+                                className="cinema-focus rounded bg-[#E50914] px-4 py-1.5 text-xs font-bold text-white transition hover:bg-[#b80710]"
+                            >
+                                Masuk
+                            </Link>
                         )}
 
+                        {/* Tombol Pemicu Menu Mobile */}
                         <button
                             type="button"
                             onClick={() => setIsMenuOpen(true)}
-                            aria-label="Buka menu"
-                            aria-expanded={isMenuOpen}
+                            aria-label="Buka menu navigasi"
                             className="cinema-focus flex h-11 w-11 items-center justify-center rounded-full text-[var(--cinema-ink)] transition hover:bg-white/10 lg:hidden"
                         >
-                            <Menu className="h-5 w-5" aria-hidden="true" />
+                            <Menu className="h-6 w-6" aria-hidden="true" />
                         </button>
                     </div>
                 </nav>
             </header>
 
+            {/* Panel Samping Menu Mobile */}
             {isMenuOpen && (
-                <div className="fixed inset-0 z-[60]">
-                    <button
-                        type="button"
-                        aria-label="Tutup menu"
+                <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Menu navigasi utama"
+                    className="fixed inset-0 z-50 lg:hidden"
+                >
+                    <div
+                        className="fixed inset-0 bg-black/70 backdrop-blur-xs"
                         onClick={() => setIsMenuOpen(false)}
-                        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
                     />
 
-                    <div
-                        role="dialog"
-                        aria-modal="true"
-                        aria-label="Menu navigasi"
+                    <nav
+                        aria-label="Daftar navigasi mobile"
                         className="absolute inset-y-0 right-0 flex w-full max-w-sm flex-col overflow-y-auto bg-[var(--cinema-raised)] p-6 shadow-2xl"
                     >
                         <div className="flex items-center justify-between">
@@ -368,7 +362,7 @@ export default function Navbar({ activePath }: NavbarProps) {
                                         type="button"
                                         onClick={() => {
                                             setIsMenuOpen(false);
-                                            router.post('/logout');
+                                            handleLogout();
                                         }}
                                         className="cinema-focus flex min-h-11 items-center gap-2.5 rounded px-3 text-left text-[15px] font-medium text-red-400 transition hover:bg-red-500/10 hover:text-red-300"
                                     >
@@ -377,25 +371,16 @@ export default function Navbar({ activePath }: NavbarProps) {
                                     </button>
                                 </div>
                             ) : (
-                                <div className="flex flex-col gap-2.5">
-                                    <Link
-                                        href="/login"
-                                        onClick={() => setIsMenuOpen(false)}
-                                        className="cinema-focus flex min-h-11 items-center justify-center rounded bg-[#E50914] px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700"
-                                    >
-                                        Masuk
-                                    </Link>
-                                    <Link
-                                        href="/register"
-                                        onClick={() => setIsMenuOpen(false)}
-                                        className="cinema-focus flex min-h-11 items-center justify-center rounded border border-white/20 px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:bg-white/5 hover:text-white"
-                                    >
-                                        Daftar Akun Baru
-                                    </Link>
-                                </div>
+                                <Link
+                                    href="/login"
+                                    onClick={() => setIsMenuOpen(false)}
+                                    className="cinema-focus flex min-h-11 items-center justify-center rounded bg-[#E50914] text-sm font-bold text-white transition hover:bg-[#b80710]"
+                                >
+                                    Masuk ke Akun
+                                </Link>
                             )}
                         </div>
-                    </div>
+                    </nav>
                 </div>
             )}
         </>
@@ -408,7 +393,7 @@ function MenuSection({
     onNavigate,
 }: {
     title: string;
-    links: readonly { label: string; href: string }[];
+    links: readonly { label: string; href: string; isLive?: boolean }[];
     onNavigate: () => void;
 }) {
     return (
@@ -424,6 +409,12 @@ function MenuSection({
                             onClick={onNavigate}
                             className="cinema-focus flex min-h-11 items-center rounded px-3 text-[15px] font-medium text-[var(--cinema-ink-soft)] transition hover:bg-white/5 hover:text-[var(--cinema-ink)]"
                         >
+                            {link.isLive && (
+                                <span className="mr-2 flex h-2 w-2 relative">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600" />
+                                </span>
+                            )}
                             {link.label}
                         </Link>
                     </li>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" width="240" height="80">
+  <rect width="240" height="80" rx="12" fill="#042916"/>
+  <circle cx="45" cy="40" r="22" fill="#00843D"/>
+  <text x="32" y="48" fill="#FFCC00" font-family="Montserrat, Arial, sans-serif" font-weight="900" font-size="24">tv</text>
+  <text x="78" y="47" fill="#FFFFFF" font-family="Montserrat, Arial, sans-serif" font-weight="900" font-size="34" letter-spacing="1">tvMu</text>
+  <text x="80" y="65" fill="#FFCC00" font-family="Montserrat, Arial, sans-serif" font-weight="700" font-size="12" letter-spacing="1.5">CERDAS MENCERAHKAN</text>
+</svg>

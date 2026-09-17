@@ -289,6 +289,84 @@ home.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     
     home.form = homeForm
 /**
+* @see \App\Http\Controllers\LiveTvController::liveTv
+ * @see app/Http/Controllers/LiveTvController.php:23
+ * @route '/live-tv'
+ */
+export const liveTv = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: liveTv.url(options),
+    method: 'get',
+})
+
+liveTv.definition = {
+    methods: ["get","head"],
+    url: '/live-tv',
+} satisfies RouteDefinition<["get","head"]>
+
+/**
+* @see \App\Http\Controllers\LiveTvController::liveTv
+ * @see app/Http/Controllers/LiveTvController.php:23
+ * @route '/live-tv'
+ */
+liveTv.url = (options?: RouteQueryOptions) => {
+    return liveTv.definition.url + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\LiveTvController::liveTv
+ * @see app/Http/Controllers/LiveTvController.php:23
+ * @route '/live-tv'
+ */
+liveTv.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: liveTv.url(options),
+    method: 'get',
+})
+/**
+* @see \App\Http\Controllers\LiveTvController::liveTv
+ * @see app/Http/Controllers/LiveTvController.php:23
+ * @route '/live-tv'
+ */
+liveTv.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: liveTv.url(options),
+    method: 'head',
+})
+
+    /**
+* @see \App\Http\Controllers\LiveTvController::liveTv
+ * @see app/Http/Controllers/LiveTvController.php:23
+ * @route '/live-tv'
+ */
+    const liveTvForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+        action: liveTv.url(options),
+        method: 'get',
+    })
+
+            /**
+* @see \App\Http\Controllers\LiveTvController::liveTv
+ * @see app/Http/Controllers/LiveTvController.php:23
+ * @route '/live-tv'
+ */
+        liveTvForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: liveTv.url(options),
+            method: 'get',
+        })
+            /**
+* @see \App\Http\Controllers\LiveTvController::liveTv
+ * @see app/Http/Controllers/LiveTvController.php:23
+ * @route '/live-tv'
+ */
+        liveTvForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: liveTv.url({
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'HEAD',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'get',
+        })
+    
+    liveTv.form = liveTvForm
+/**
 * @see \App\Http\Controllers\MovieController::search
  * @see app/Http/Controllers/MovieController.php:89
  * @route '/search'
@@ -367,7 +445,7 @@ search.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     
     search.form = searchForm
 /**
- * @see routes/web.php:61
+ * @see routes/web.php:64
  * @route '/watch/{type}/{id}'
  */
 export const watch = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -381,7 +459,7 @@ watch.definition = {
 } satisfies RouteDefinition<["get","head"]>
 
 /**
- * @see routes/web.php:61
+ * @see routes/web.php:64
  * @route '/watch/{type}/{id}'
  */
 watch.url = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions) => {
@@ -406,7 +484,7 @@ watch.url = (args: { type: string | number, id: string | number } | [type: strin
 }
 
 /**
- * @see routes/web.php:61
+ * @see routes/web.php:64
  * @route '/watch/{type}/{id}'
  */
 watch.get = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -414,7 +492,7 @@ watch.get = (args: { type: string | number, id: string | number } | [type: strin
     method: 'get',
 })
 /**
- * @see routes/web.php:61
+ * @see routes/web.php:64
  * @route '/watch/{type}/{id}'
  */
 watch.head = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -423,7 +501,7 @@ watch.head = (args: { type: string | number, id: string | number } | [type: stri
 })
 
     /**
- * @see routes/web.php:61
+ * @see routes/web.php:64
  * @route '/watch/{type}/{id}'
  */
     const watchForm = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -432,7 +510,7 @@ watch.head = (args: { type: string | number, id: string | number } | [type: stri
     })
 
             /**
- * @see routes/web.php:61
+ * @see routes/web.php:64
  * @route '/watch/{type}/{id}'
  */
         watchForm.get = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -440,7 +518,7 @@ watch.head = (args: { type: string | number, id: string | number } | [type: stri
             method: 'get',
         })
             /**
- * @see routes/web.php:61
+ * @see routes/web.php:64
  * @route '/watch/{type}/{id}'
  */
         watchForm.head = (args: { type: string | number, id: string | number } | [type: string | number, id: string | number ], options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -533,7 +611,7 @@ account.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     
     account.form = accountForm
 /**
- * @see routes/web.php:157
+ * @see routes/web.php:160
  * @route '/dashboard'
  */
 export const dashboard = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -547,7 +625,7 @@ dashboard.definition = {
 } satisfies RouteDefinition<["get","head"]>
 
 /**
- * @see routes/web.php:157
+ * @see routes/web.php:160
  * @route '/dashboard'
  */
 dashboard.url = (options?: RouteQueryOptions) => {
@@ -555,7 +633,7 @@ dashboard.url = (options?: RouteQueryOptions) => {
 }
 
 /**
- * @see routes/web.php:157
+ * @see routes/web.php:160
  * @route '/dashboard'
  */
 dashboard.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -563,7 +641,7 @@ dashboard.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
     method: 'get',
 })
 /**
- * @see routes/web.php:157
+ * @see routes/web.php:160
  * @route '/dashboard'
  */
 dashboard.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -572,7 +650,7 @@ dashboard.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 })
 
     /**
- * @see routes/web.php:157
+ * @see routes/web.php:160
  * @route '/dashboard'
  */
     const dashboardForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -581,7 +659,7 @@ dashboard.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     })
 
             /**
- * @see routes/web.php:157
+ * @see routes/web.php:160
  * @route '/dashboard'
  */
         dashboardForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -589,7 +667,7 @@ dashboard.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
             method: 'get',
         })
             /**
- * @see routes/web.php:157
+ * @see routes/web.php:160
  * @route '/dashboard'
  */
         dashboardForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

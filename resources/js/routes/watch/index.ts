@@ -1,6 +1,6 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition } from './../../wayfinder'
 /**
- * @see routes/web.php:52
+ * @see routes/web.php:55
  * @route '/tonton'
  */
 export const direct = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -14,7 +14,7 @@ direct.definition = {
 } satisfies RouteDefinition<["get","head"]>
 
 /**
- * @see routes/web.php:52
+ * @see routes/web.php:55
  * @route '/tonton'
  */
 direct.url = (options?: RouteQueryOptions) => {
@@ -22,7 +22,7 @@ direct.url = (options?: RouteQueryOptions) => {
 }
 
 /**
- * @see routes/web.php:52
+ * @see routes/web.php:55
  * @route '/tonton'
  */
 direct.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -30,7 +30,7 @@ direct.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
     method: 'get',
 })
 /**
- * @see routes/web.php:52
+ * @see routes/web.php:55
  * @route '/tonton'
  */
 direct.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -39,7 +39,7 @@ direct.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 })
 
     /**
- * @see routes/web.php:52
+ * @see routes/web.php:55
  * @route '/tonton'
  */
     const directForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -48,7 +48,7 @@ direct.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     })
 
             /**
- * @see routes/web.php:52
+ * @see routes/web.php:55
  * @route '/tonton'
  */
         directForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -56,7 +56,7 @@ direct.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
             method: 'get',
         })
             /**
- * @see routes/web.php:52
+ * @see routes/web.php:55
  * @route '/tonton'
  */
         directForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

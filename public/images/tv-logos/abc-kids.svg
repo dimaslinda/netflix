@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" width="240" height="80">
+  <rect width="240" height="80" rx="12" fill="#1C1917"/>
+  <circle cx="45" cy="40" r="22" fill="#EF4444"/>
+  <text x="28" y="47" fill="#FFFFFF" font-family="Montserrat, Arial, sans-serif" font-weight="900" font-size="18">abc</text>
+  <text x="78" y="46" fill="#F87171" font-family="Montserrat, Arial, sans-serif" font-weight="900" font-size="32" letter-spacing="2">KIDS</text>
+  <text x="80" y="64" fill="#A8A29E" font-family="Montserrat, Arial, sans-serif" font-weight="700" font-size="12" letter-spacing="3">ANIMATION</text>
+</svg>
