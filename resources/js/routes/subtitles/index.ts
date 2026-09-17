@@ -157,7 +157,7 @@ searchQuery.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     searchQuery.form = searchQueryForm
 /**
 * @see \App\Http\Controllers\SubtitleController::languages
- * @see app/Http/Controllers/SubtitleController.php:117
+ * @see app/Http/Controllers/SubtitleController.php:119
  * @route '/api/subtitles/languages'
  */
 export const languages = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -172,7 +172,7 @@ languages.definition = {
 
 /**
 * @see \App\Http\Controllers\SubtitleController::languages
- * @see app/Http/Controllers/SubtitleController.php:117
+ * @see app/Http/Controllers/SubtitleController.php:119
  * @route '/api/subtitles/languages'
  */
 languages.url = (options?: RouteQueryOptions) => {
@@ -181,7 +181,7 @@ languages.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\SubtitleController::languages
- * @see app/Http/Controllers/SubtitleController.php:117
+ * @see app/Http/Controllers/SubtitleController.php:119
  * @route '/api/subtitles/languages'
  */
 languages.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -190,7 +190,7 @@ languages.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\SubtitleController::languages
- * @see app/Http/Controllers/SubtitleController.php:117
+ * @see app/Http/Controllers/SubtitleController.php:119
  * @route '/api/subtitles/languages'
  */
 languages.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -200,7 +200,7 @@ languages.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\SubtitleController::languages
- * @see app/Http/Controllers/SubtitleController.php:117
+ * @see app/Http/Controllers/SubtitleController.php:119
  * @route '/api/subtitles/languages'
  */
     const languagesForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -210,7 +210,7 @@ languages.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\SubtitleController::languages
- * @see app/Http/Controllers/SubtitleController.php:117
+ * @see app/Http/Controllers/SubtitleController.php:119
  * @route '/api/subtitles/languages'
  */
         languagesForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -219,7 +219,7 @@ languages.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\SubtitleController::languages
- * @see app/Http/Controllers/SubtitleController.php:117
+ * @see app/Http/Controllers/SubtitleController.php:119
  * @route '/api/subtitles/languages'
  */
         languagesForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

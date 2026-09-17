@@ -111,6 +111,8 @@ final class SubtitleController extends Controller
 
         return response($content)
             ->header('Content-Type', 'text/vtt; charset=UTF-8')
+            ->header('Access-Control-Allow-Origin', '*')
+            ->header('Access-Control-Allow-Methods', 'GET, OPTIONS')
             ->header('Cache-Control', 'private, max-age=86400');
     }
 

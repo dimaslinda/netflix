@@ -465,3 +465,24 @@ iframe {
         border-radius: var(--cinema-radius-card);
     }
 }
+
+/*
+ | Optimasi Pemutar Video Mobile:
+ | Pada mode lanskap di HP, pemutar video otomatis memenuhi layar (fullscreen bioskop),
+ | sedangkan pada mode potret tetap 16:9 dengan kontrol tepat di bawah video.
+ */
+@media (max-width: 768px) and (orientation: landscape) {
+    .mobile-landscape-fullscreen {
+        position: fixed !important;
+        inset: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        height: 100dvh !important;
+        z-index: 50 !important;
+        aspect-ratio: auto !important;
+    }
+    .mobile-landscape-hidden {
+        display: none !important;
+    }
+}
+

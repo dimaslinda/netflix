@@ -27,13 +27,11 @@ interface ServerProvider {
     id: string;
     name: string;
     shortName: string;
-    subIndoReady: boolean;
     getUrl: (params: {
         id: string;
         type: 'movie' | 'tv';
         season: string;
         episode: string;
-        subUrl?: string | null;
     }) => string;
 }
 
@@ -42,8 +40,7 @@ const SERVERS: ServerProvider[] = [
         id: 'vidlink',
         name: 'Server 1 (VidLink)',
         shortName: 'VidLink',
-        subIndoReady: true,
-        getUrl: ({ id, type, season, episode, subUrl }) => {
+        getUrl: ({ id, type, season, episode }) => {
             const base = 'https://vidlink.pro';
             const query = [
                 'primaryColor=e50914',
@@ -55,22 +52,16 @@ const SERVERS: ServerProvider[] = [
                 'poster=true',
                 'autoplay=true',
                 'nextbutton=true',
-            ];
-            if (subUrl) {
-                query.push(`sub_file=${encodeURIComponent(subUrl)}`);
-                query.push('sub_label=Indonesian');
-            }
-            const qs = query.join('&');
+            ].join('&');
             return type === 'tv'
-                ? `${base}/tv/${id}/${season}/${episode}?${qs}`
-                : `${base}/movie/${id}?${qs}`;
+                ? `${base}/tv/${id}/${season}/${episode}?${query}`
+                : `${base}/movie/${id}?${query}`;
         },
     },
     {
         id: 'vidnest',
         name: 'Server 2 (VidNest)',
         shortName: 'VidNest',
-        subIndoReady: true,
         getUrl: ({ id, type, season, episode }) =>
             type === 'tv'
                 ? `https://vidnest.fun/tv/${id}/${season}/${episode}`
@@ -80,7 +71,6 @@ const SERVERS: ServerProvider[] = [
         id: 'vidsrc_ru',
         name: 'Server 3 (VidSrc RU)',
         shortName: 'VidSrc RU',
-        subIndoReady: true,
         getUrl: ({ id, type, season, episode }) =>
             type === 'tv'
                 ? `https://vidsrcme.ru/embed/tv?tmdb=${id}&season=${season}&episode=${episode}`
@@ -90,7 +80,6 @@ const SERVERS: ServerProvider[] = [
         id: 'vidsrc_to',
         name: 'Server 4 (VidSrc TO)',
         shortName: 'VidSrc TO',
-        subIndoReady: true,
         getUrl: ({ id, type, season, episode }) =>
             type === 'tv'
                 ? `https://vidsrc.to/embed/tv/${id}/${season}/${episode}`
@@ -100,7 +89,6 @@ const SERVERS: ServerProvider[] = [
         id: '2embed',
         name: 'Server 5 (2Embed)',
         shortName: '2Embed',
-        subIndoReady: true,
         getUrl: ({ id, type, season, episode }) =>
             type === 'tv'
                 ? `https://www.2embed.cc/embedtv/${id}&s=${season}&e=${episode}`
@@ -120,7 +108,6 @@ export default function Watch({
     const [currentSeason, setCurrentSeason] = useState(initialSeason);
     const [currentEpisode, setCurrentEpisode] = useState(initialEpisode);
     const [activeServerId, setActiveServerId] = useState<string>('vidlink');
-    const [indoSubUrl, setIndoSubUrl] = useState<string | null>(null);
 
     // Simpan rute asal sebelum masuk ke halaman tonton agar tombol kembali tidak terjebak di riwayat iframe
     const [returnUrl] = useState<string>(() => {
@@ -236,7 +223,7 @@ export default function Watch({
         propBackdrop,
     ]);
 
-    // Timer auto-hide untuk header dan kontrol saat kursor tidak bergerak
+    // Timer auto-hide untuk header
     const resetHideTimer = useCallback(() => {
         setShowUi(true);
         if (hideTimeoutRef.current) {
@@ -246,18 +233,19 @@ export default function Watch({
             if (!isEpisodeDrawerOpen) {
                 setShowUi(false);
             }
-        }, 3500);
+        }, 4000);
     }, [isEpisodeDrawerOpen]);
 
     useEffect(() => {
         const handleActivity = () => resetHideTimer();
         window.addEventListener('mousemove', handleActivity);
-        window.addEventListener('touchstart', handleActivity);
+        window.addEventListener('touchstart', handleActivity, { passive: true });
 
-        // Pasang timer awal saat komponen pertama kali terpasang
         const initialTimer = setTimeout(() => {
-            setShowUi(false);
-        }, 3500);
+            if (!isEpisodeDrawerOpen) {
+                setShowUi(false);
+            }
+        }, 4000);
 
         return () => {
             window.removeEventListener('mousemove', handleActivity);
@@ -267,9 +255,9 @@ export default function Watch({
                 clearTimeout(hideTimeoutRef.current);
             }
         };
-    }, [resetHideTimer]);
+    }, [resetHideTimer, isEpisodeDrawerOpen]);
 
-    // Tombol kembali langsung mengarahkan ke halaman sebelumnya di aplikasi (bukan riwayat internal iframe)
+    // Tombol kembali langsung mengarahkan ke halaman sebelumnya di aplikasi
     const handleBack = () => {
         if (returnUrl && returnUrl.startsWith('/')) {
             router.visit(returnUrl);
@@ -321,46 +309,6 @@ export default function Watch({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isEpisodeDrawerOpen]);
 
-    // Ambil takarir bahasa Indonesia dari backend jika ada
-    useEffect(() => {
-        if (!id) return;
-        const controller = new AbortController();
-        const params = new URLSearchParams({
-            tmdb_id: id,
-            type,
-            ...(type === 'tv'
-                ? { season: currentSeason, episode: currentEpisode }
-                : {}),
-        });
-
-        fetch(`/api/subtitles/search?${params.toString()}`, {
-            signal: controller.signal,
-        })
-            .then((res) => res.json())
-            .then((json) => {
-                if (
-                    json.success &&
-                    Array.isArray(json.data) &&
-                    json.data.length > 0
-                ) {
-                    const idTrack =
-                        json.data.find(
-                            (t: { language: string }) =>
-                                t.language === 'id' || t.language === 'ind',
-                        ) ?? json.data[0];
-                    if (idTrack) {
-                        const vttUrl = `${window.location.origin}/api/subtitles/stream?track_id=${encodeURIComponent(idTrack.id)}`;
-                        setIndoSubUrl(vttUrl);
-                    }
-                }
-            })
-            .catch(() => {
-                // Gunakan subtitle bawaan server jika pencarian takarir gagal
-            });
-
-        return () => controller.abort();
-    }, [id, type, currentSeason, currentEpisode]);
-
     const title =
         propTitle ??
         details?.title ??
@@ -377,9 +325,8 @@ export default function Watch({
             type,
             season: currentSeason,
             episode: currentEpisode,
-            subUrl: indoSubUrl,
         });
-    }, [activeServer, id, type, currentSeason, currentEpisode, indoSubUrl]);
+    }, [activeServer, id, type, currentSeason, currentEpisode]);
 
     const seasonList = useMemo(() => {
         if (!details?.seasons) return [];
@@ -387,7 +334,7 @@ export default function Watch({
     }, [details]);
 
     return (
-        <div className="relative h-screen w-screen overflow-hidden bg-black font-sans select-none">
+        <div className="min-h-dvh w-full bg-[#141414] text-white flex flex-col font-sans select-none md:fixed md:inset-0 md:h-screen md:w-screen md:overflow-hidden md:bg-black">
             <Head
                 title={
                     type === 'tv'
@@ -396,88 +343,189 @@ export default function Watch({
                 }
             />
 
-            {/* Header Mengambang Netflix (Otomatis Sembunyi) */}
+            {/* HEADER KHUSUS MOBILE (Mode Potret di Ponsel) */}
+            <header className="mobile-landscape-hidden sticky top-0 z-30 flex items-center justify-between border-b border-zinc-800 bg-black/95 px-3 py-2.5 backdrop-blur-md md:hidden">
+                <div className="flex min-w-0 items-center gap-2.5">
+                    <button
+                        type="button"
+                        onClick={handleBack}
+                        aria-label="Kembali"
+                        className="cinema-focus flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 active:scale-95"
+                    >
+                        <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+                    </button>
+
+                    <div className="flex min-w-0 flex-col">
+                        <div className="flex items-center gap-1.5">
+                            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-[#E50914] text-[9px] font-black text-white">
+                                N
+                            </span>
+                            <h1 className="truncate text-xs font-bold text-white max-w-[180px] xs:max-w-[240px]">
+                                {title}
+                            </h1>
+                        </div>
+                        {type === 'tv' && (
+                            <p className="truncate text-[10px] text-zinc-400">
+                                M{currentSeason} : E{currentEpisode}
+                                {currentEpisodeData?.name ? ` - ${currentEpisodeData.name}` : ''}
+                            </p>
+                        )}
+                    </div>
+                </div>
+
+                {type === 'tv' && (
+                    <div className="flex shrink-0 items-center gap-1.5">
+                        {nextEpisode && (
+                            <button
+                                type="button"
+                                onClick={handleNextEpisode}
+                                aria-label="Episode Berikutnya"
+                                className="cinema-focus flex h-8 items-center gap-1 rounded-full bg-white/10 px-2.5 text-[11px] font-semibold text-white transition hover:bg-white/20 active:scale-95"
+                            >
+                                <SkipForward className="h-3.5 w-3.5" />
+                                <span className="hidden xs:inline">Lanjut</span>
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const el = document.getElementById('mobile-episodes-section');
+                                if (el) {
+                                    el.scrollIntoView({ behavior: 'smooth' });
+                                } else {
+                                    setIsEpisodeDrawerOpen(true);
+                                }
+                            }}
+                            aria-label="Ke Daftar Episode"
+                            className="cinema-focus flex h-8 items-center gap-1 rounded-full bg-[#E50914] px-2.5 text-[11px] font-semibold text-white transition hover:bg-[#b80710] active:scale-95"
+                        >
+                            <LayoutGrid className="h-3.5 w-3.5" />
+                            <span>Episode</span>
+                        </button>
+                    </div>
+                )}
+            </header>
+
+            {/* HEADER MENGAMBANG KHUSUS DESKTOP (Sinematik & Otomatis Sembunyi) */}
             <header
                 className={cn(
-                    'pointer-events-auto fixed top-0 right-0 left-0 z-40 flex flex-col gap-3 bg-gradient-to-b from-black/95 via-black/75 to-transparent px-4 py-4 transition-opacity duration-300 md:px-8 md:py-6',
+                    'pointer-events-none fixed inset-x-0 top-0 z-40 hidden flex-col bg-linear-to-b from-black/95 via-black/75 to-transparent px-6 pt-4 pb-7 transition-opacity duration-300 md:flex md:px-8',
                     showUi || isEpisodeDrawerOpen
                         ? 'opacity-100'
-                        : 'pointer-events-none opacity-0',
+                        : 'opacity-0',
                 )}
             >
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+                {/* Baris 1: Tombol Navigasi, Judul, dan Tombol Kontrol Cepat */}
+                <div className="flex items-center justify-between gap-2">
+                    {/* Sisi Kiri: Tombol Kembali & Info Judul */}
+                    <div className="flex min-w-0 items-center gap-4">
                         <button
                             type="button"
                             onClick={handleBack}
                             aria-label="Kembali"
-                            className="cinema-focus flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-white/20 active:scale-95"
+                            className="pointer-events-auto cinema-focus flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black/70 text-white transition hover:bg-white/20 active:scale-95 border border-white/15 backdrop-blur-md"
                         >
                             <ArrowLeft className="h-6 w-6" aria-hidden="true" />
                         </button>
 
-                        <div className="flex flex-col">
+                        <div className="flex min-w-0 flex-col">
                             <div className="flex items-center gap-2">
-                                <span className="flex h-5 w-5 items-center justify-center rounded bg-[#E50914] text-[10px] font-black text-white">
+                                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-[#E50914] text-[10px] font-black text-white">
                                     N
                                 </span>
-                                <h1 className="line-clamp-1 text-base font-bold text-white drop-shadow md:text-lg">
+                                <h1 className="truncate text-base font-bold text-white drop-shadow max-w-md">
                                     {title}
                                 </h1>
                             </div>
 
                             {type === 'tv' && (
-                                <p className="text-xs text-zinc-300 drop-shadow md:text-sm">
-                                    Musim {currentSeason} : Episode{' '}
-                                    {currentEpisode}
-                                    {currentEpisodeData?.name
-                                        ? ` - ${currentEpisodeData.name}`
-                                        : ''}
+                                <p className="truncate text-xs text-zinc-300 drop-shadow">
+                                    M{currentSeason} : E{currentEpisode}
+                                    {currentEpisodeData?.name ? ` - ${currentEpisodeData.name}` : ''}
                                 </p>
                             )}
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                        {/* Tombol Episode Berikutnya untuk TV */}
+                    {/* Sisi Kanan: Episode & Episode Berikutnya (TV) */}
+                    <div className="flex shrink-0 items-center gap-2.5">
                         {type === 'tv' && nextEpisode && (
                             <button
                                 type="button"
                                 onClick={handleNextEpisode}
                                 aria-label={`Putar Episode Berikutnya: Episode ${nextEpisode.episode_number}`}
-                                className="cinema-focus flex min-h-11 items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-white backdrop-blur-sm transition hover:bg-white/20 md:text-sm"
+                                className="pointer-events-auto cinema-focus flex h-11 items-center gap-1.5 rounded-full bg-white/15 px-3.5 py-1.5 text-xs font-semibold text-white border border-white/20 backdrop-blur-sm transition hover:bg-white/25 active:scale-95"
                             >
-                                <SkipForward
-                                    className="h-4 w-4"
-                                    aria-hidden="true"
-                                />
-                                <span className="hidden sm:inline">
-                                    Episode Berikutnya
-                                </span>
+                                <SkipForward className="h-4 w-4 shrink-0" aria-hidden="true" />
+                                <span>Berikutnya</span>
                             </button>
                         )}
 
-                        {/* Tombol Buka Panel Episode untuk TV */}
                         {type === 'tv' && (
                             <button
                                 type="button"
                                 onClick={() => setIsEpisodeDrawerOpen(true)}
                                 aria-label="Buka Daftar Episode"
-                                className="cinema-focus flex min-h-11 items-center gap-2 rounded-full bg-black/60 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/20 md:text-sm"
+                                className="pointer-events-auto cinema-focus flex h-11 items-center gap-1.5 rounded-full bg-black/70 px-4 py-1.5 text-xs font-semibold text-white border border-white/15 backdrop-blur-md transition hover:bg-white/20 active:scale-95"
                             >
-                                <LayoutGrid
-                                    className="h-4 w-4"
-                                    aria-hidden="true"
-                                />
+                                <LayoutGrid className="h-4 w-4 shrink-0" aria-hidden="true" />
                                 <span>Episode</span>
                             </button>
                         )}
                     </div>
                 </div>
 
-                {/* Bar Pemilihan Server (Sesuai Tampilan Pengguna) */}
-                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3">
-                    <div className="flex flex-wrap items-center gap-2">
+                {/* Baris 2: Pemilihan Server Desktop */}
+                <div className="pointer-events-auto no-scrollbar mt-2.5 flex items-center gap-1.5 overflow-x-auto border-t border-white/10 pt-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 pr-1">
+                        Server:
+                    </span>
+                    {SERVERS.map((server) => {
+                        const isActive = server.id === activeServerId;
+                        return (
+                            <button
+                                key={server.id}
+                                type="button"
+                                onClick={() => setActiveServerId(server.id)}
+                                className={cn(
+                                    'cinema-focus flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-bold transition active:scale-95',
+                                    isActive
+                                        ? 'bg-[#E50914] text-white shadow-md ring-2 ring-red-500/50'
+                                        : 'bg-zinc-900/90 text-zinc-300 hover:bg-zinc-800 hover:text-white border border-white/10 backdrop-blur-sm',
+                                )}
+                            >
+                                <span>{server.name}</span>
+                            </button>
+                        );
+                    })}
+
+                    <span className="text-[11px] text-zinc-400 pl-2">
+                        💡 Takarir (CC) dapat diaktifkan langsung di tombol CC pemutar video
+                    </span>
+                </div>
+            </header>
+
+            {/* KONTEN PEMUTAR VIDEO (16:9 di Mobile Portrait, Fullscreen di Mobile Landscape & Desktop) */}
+            <div className="mobile-landscape-fullscreen relative w-full aspect-video bg-black shrink-0 md:absolute md:inset-0 md:h-full md:w-full md:aspect-auto">
+                <iframe
+                    key={`${activeServerId}-${currentSeason}-${currentEpisode}`}
+                    src={embedUrl}
+                    title={`Pemutar ${title}`}
+                    className="h-full w-full border-0"
+                    allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+                    allowFullScreen
+                />
+            </div>
+
+            {/* AREA KONTEN KHUSUS MOBILE DI BAWAH PEMUTAR (Mode Potret di HP) */}
+            <div className="mobile-landscape-hidden flex-1 space-y-4 p-3.5 sm:p-5 md:hidden">
+                {/* Pemilihan Server di Mobile (Scroll Horizontal Rapi) */}
+                <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs text-zinc-400">
+                        <span className="font-semibold uppercase tracking-wider text-[11px]">Pilih Server:</span>
+                        <span className="text-[10px] text-zinc-500">Takarir ada di tombol CC player</span>
+                    </div>
+                    <div className="no-scrollbar flex items-center gap-2 overflow-x-auto pb-1">
                         {SERVERS.map((server) => {
                             const isActive = server.id === activeServerId;
                             return (
@@ -486,47 +534,153 @@ export default function Watch({
                                     type="button"
                                     onClick={() => setActiveServerId(server.id)}
                                     className={cn(
-                                        'cinema-focus flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold transition md:text-sm',
+                                        'cinema-focus flex shrink-0 items-center justify-center rounded-full px-3.5 py-1.5 text-xs font-bold transition active:scale-95',
                                         isActive
-                                            ? 'bg-[#E50914] text-white shadow-lg ring-2 ring-red-500/50'
-                                            : 'bg-zinc-900/90 text-zinc-300 hover:bg-zinc-800 hover:text-white',
+                                            ? 'bg-[#E50914] text-white shadow-md ring-2 ring-red-500/50'
+                                            : 'bg-zinc-900 text-zinc-300 border border-zinc-800 hover:border-zinc-700 hover:text-white',
                                     )}
                                 >
-                                    <span>{server.name}</span>
+                                    {server.shortName}
                                 </button>
                             );
                         })}
                     </div>
-
-                    <div className="flex items-center gap-2 rounded-full bg-zinc-900/80 px-3 py-1.5 text-xs text-zinc-300 backdrop-blur-sm">
-                        <span className="flex h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-                        <span className="font-semibold text-emerald-400">
-                            Sub Indo Tersedia
-                        </span>
-                        <span className="hidden text-[11px] text-zinc-400 sm:inline">
-                            (Bisa dipilih di ikon CC / Subtitle pemutar)
-                        </span>
-                    </div>
                 </div>
-            </header>
 
-            {/* Iframe Pemutar VidLink / Server Terpilih */}
-            <iframe
-                key={`${activeServerId}-${currentSeason}-${currentEpisode}`}
-                src={embedUrl}
-                title={`Pemutar ${title}`}
-                className="h-full w-full border-0"
-                allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-                allowFullScreen
-            />
+                {/* Detail Singkat Tayangan di Mobile */}
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3.5 backdrop-blur-xs">
+                    <h2 className="text-sm font-bold text-white">
+                        {title}
+                    </h2>
+                    {type === 'tv' && currentEpisodeData && (
+                        <p className="mt-0.5 text-xs font-medium text-[#E50914]">
+                            M{currentSeason} : E{currentEpisode} - {currentEpisodeData.name}
+                        </p>
+                    )}
+                    {details?.overview && (
+                        <p className="mt-2 text-xs leading-relaxed text-zinc-300 line-clamp-3">
+                            {details.overview}
+                        </p>
+                    )}
+                </div>
 
-            {/* Drawer Episode Netflix (Slide-Over) */}
+                {/* Daftar Episode untuk Serial TV di Mobile */}
+                {type === 'tv' && (
+                    <div id="mobile-episodes-section" className="space-y-3 pt-1">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-bold text-white">
+                                Daftar Episode
+                            </h3>
+
+                            {seasonList.length > 1 && (
+                                <select
+                                    value={currentSeason}
+                                    onChange={(e) => {
+                                        setCurrentSeason(e.target.value);
+                                        selectEpisode(e.target.value, 1);
+                                    }}
+                                    aria-label="Pilih Musim"
+                                    className="cinema-focus rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-xs font-medium text-white"
+                                >
+                                    {seasonList.map((s) => (
+                                        <option key={s.season_number} value={s.season_number}>
+                                            {s.name || `Musim ${s.season_number}`} ({s.episode_count} Ep)
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
+                        </div>
+
+                        {/* List Episode Cards */}
+                        <div className="space-y-2.5">
+                            {!seasonDetails ? (
+                                <div className="flex h-32 flex-col items-center justify-center gap-2 text-zinc-400">
+                                    <Loader2 className="h-5 w-5 animate-spin text-[#E50914]" />
+                                    <span className="text-xs">Memuat episode...</span>
+                                </div>
+                            ) : seasonDetails.episodes && seasonDetails.episodes.length > 0 ? (
+                                seasonDetails.episodes.map((ep) => {
+                                    const isCurrent = String(ep.episode_number) === String(currentEpisode);
+                                    const stillUrl = ep.still_path
+                                        ? `https://image.tmdb.org/t/p/w300${ep.still_path}`
+                                        : '/placeholder.jpg';
+
+                                    return (
+                                        <div
+                                            key={ep.id}
+                                            onClick={() => selectEpisode(currentSeason, ep.episode_number)}
+                                            role="button"
+                                            tabIndex={0}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                    e.preventDefault();
+                                                    selectEpisode(currentSeason, ep.episode_number);
+                                                }
+                                            }}
+                                            className={cn(
+                                                'cinema-focus group flex cursor-pointer gap-3 rounded-lg border p-2 transition',
+                                                isCurrent
+                                                    ? 'border-[#E50914] bg-zinc-900 shadow-sm'
+                                                    : 'border-zinc-800/80 bg-zinc-900/40 hover:border-zinc-700 hover:bg-zinc-900',
+                                            )}
+                                        >
+                                            <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded bg-black">
+                                                <img
+                                                    src={stillUrl}
+                                                    alt={`Episode ${ep.episode_number}`}
+                                                    className="h-full w-full object-cover"
+                                                    loading="lazy"
+                                                />
+                                                <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition group-hover:opacity-100">
+                                                    <Play className="h-4 w-4 fill-white text-white" />
+                                                </div>
+                                                {isCurrent && (
+                                                    <div className="absolute bottom-1 left-1 rounded bg-[#E50914] px-1 py-0.5 text-[8px] font-bold text-white">
+                                                        DIPUTAR
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="flex min-w-0 flex-1 flex-col justify-center">
+                                                <div className="flex items-center justify-between gap-1">
+                                                    <p
+                                                        className={cn(
+                                                            'truncate text-xs font-bold',
+                                                            isCurrent ? 'text-[#E50914]' : 'text-white',
+                                                        )}
+                                                    >
+                                                        {ep.episode_number}. {ep.name}
+                                                    </p>
+                                                    {ep.runtime ? (
+                                                        <span className="shrink-0 text-[10px] text-zinc-400">
+                                                            {ep.runtime}m
+                                                        </span>
+                                                    ) : null}
+                                                </div>
+                                                <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-zinc-400">
+                                                    {ep.overview || 'Sinopsis episode belum tersedia.'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <div className="p-4 text-center text-xs text-zinc-400">
+                                    Daftar episode tidak ditemukan.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* DRAWER EPISODE KHUSUS DESKTOP (Panel Slide-Over Kanan) */}
             {type === 'tv' && (
                 <>
                     {/* Backdrop Overlay */}
                     <div
                         className={cn(
-                            'fixed inset-0 z-50 bg-black/70 backdrop-blur-xs transition-opacity duration-300',
+                            'fixed inset-0 z-50 bg-black/70 backdrop-blur-xs transition-opacity duration-300 md:block hidden',
                             isEpisodeDrawerOpen
                                 ? 'pointer-events-auto opacity-100'
                                 : 'pointer-events-none opacity-0',
@@ -534,16 +688,17 @@ export default function Watch({
                         onClick={() => setIsEpisodeDrawerOpen(false)}
                     />
 
-                    {/* Panel Samping */}
+                    {/* Panel Samping Desktop */}
                     <aside
                         className={cn(
-                            'fixed top-0 right-0 bottom-0 z-50 flex w-full max-w-md flex-col border-l border-zinc-800 bg-[#141414] shadow-2xl transition-transform duration-300 ease-in-out',
+                            'fixed z-50 hidden md:flex flex-col bg-[#141414] shadow-2xl transition-all duration-300 ease-in-out',
+                            'top-0 right-0 bottom-0 w-full max-w-md border-l border-zinc-800',
                             isEpisodeDrawerOpen
                                 ? 'translate-x-0'
                                 : 'translate-x-full',
                         )}
                     >
-                        {/* Header Drawer */}
+                        {/* Header Drawer Episode */}
                         <div className="flex items-center justify-between border-b border-zinc-800 p-5">
                             <div>
                                 <h2 className="text-lg font-bold text-white">
@@ -568,17 +723,16 @@ export default function Watch({
                         {seasonList.length > 1 && (
                             <div className="border-b border-zinc-800 px-5 py-3">
                                 <label
-                                    htmlFor="season-select"
+                                    htmlFor="desktop-season-select"
                                     className="sr-only"
                                 >
                                     Pilih Musim
                                 </label>
                                 <select
-                                    id="season-select"
+                                    id="desktop-season-select"
                                     value={currentSeason}
                                     onChange={(e) => {
                                         setCurrentSeason(e.target.value);
-                                        // Reset ke episode 1 pada pergantian musim
                                         selectEpisode(e.target.value, 1);
                                     }}
                                     className="cinema-focus w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition hover:border-zinc-500"
@@ -597,8 +751,8 @@ export default function Watch({
                             </div>
                         )}
 
-                        {/* Daftar Episode */}
-                        <div className="flex-1 space-y-3 overflow-y-auto p-4">
+                        {/* Daftar Episode Desktop */}
+                        <div className="no-scrollbar flex-1 space-y-3 overflow-y-auto p-4">
                             {!seasonDetails ? (
                                 <div className="flex h-40 flex-col items-center justify-center gap-2 text-zinc-400">
                                     <Loader2 className="h-6 w-6 animate-spin text-[#E50914]" />
@@ -646,7 +800,6 @@ export default function Watch({
                                                     : 'border-transparent bg-zinc-900/40 hover:border-zinc-700 hover:bg-zinc-900',
                                             )}
                                         >
-                                            {/* Thumbnail Still */}
                                             <div className="relative h-18 w-28 shrink-0 overflow-hidden rounded bg-black">
                                                 <img
                                                     src={stillUrl}
@@ -664,12 +817,11 @@ export default function Watch({
                                                 )}
                                             </div>
 
-                                            {/* Informasi Episode */}
                                             <div className="flex min-w-0 flex-1 flex-col justify-center">
                                                 <div className="flex items-center justify-between gap-1">
                                                     <p
                                                         className={cn(
-                                                            'truncate text-xs font-bold md:text-sm',
+                                                            'truncate text-sm font-bold',
                                                             isCurrent
                                                                 ? 'text-[#E50914]'
                                                                 : 'text-white',

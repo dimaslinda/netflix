@@ -509,15 +509,15 @@ class TmdbService
             'netflix' => 8,
             'amazon prime video' => 119,
             'prime' => 119,
-            'disney' => 390,
-            'disney+' => 390,
-            'disney+ hotstar' => 390,
+            'disney' => 122,
+            'disney+' => 122,
+            'disney+ hotstar' => 122,
             'apple tv' => 350,
             'apple' => 350,
             'viu' => 158,
-            'vidio' => 307,
-            'hbo max' => 384,
-            'max' => 384,
+            'vidio' => 489,
+            'hbo max' => 1899,
+            'max' => 1899,
         ];
 
         $needle = mb_strtolower(trim($name));
@@ -644,15 +644,22 @@ class TmdbService
             'with_watch_monetization_types' => 'flatrate',
         ] : [];
 
-        $endpoints = [
-            'disneyCollection' => '/discover/movie?' . http_build_query([
+        $disneyId = $this->findProviderIdByName('disney', $region) ?? 122;
+
+        $endpoints = [];
+
+        if ($providerId === null || $providerId === $disneyId) {
+            $endpoints['disneyCollection'] = '/discover/movie?' . http_build_query([
                 'language' => 'en-US',
                 'sort_by' => 'popularity.desc',
-                'with_watch_providers' => 390,
+                'with_watch_providers' => $disneyId,
                 'watch_region' => $region,
                 'with_watch_monetization_types' => 'flatrate',
                 'page' => 1,
-            ]),
+            ]);
+        }
+
+        $endpoints = array_merge($endpoints, [
             'trending' => $providerId === null
                 ? "/trending/all/week?language=en-US&page={$page}"
                 : '/discover/movie?' . http_build_query(array_merge(['language' => 'en-US', 'sort_by' => 'popularity.desc', 'page' => $page], $providerParams)),
@@ -678,7 +685,7 @@ class TmdbService
             'koreanContent' => '/discover/movie?' . http_build_query(array_merge(['with_original_language' => 'ko', 'language' => 'en-US', 'sort_by' => 'popularity.desc', 'page' => $page], $providerParams)),
             'popularTv' => "/tv/popular?language=en-US&page={$page}",
             'nowPlaying' => "/movie/now_playing?language=en-US&page={$page}",
-        ];
+        ]);
 
         return $this->fetchMultiple($endpoints);
     }
