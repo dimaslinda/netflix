@@ -42,9 +42,16 @@ class MovieController extends Controller
 
         $cacheKey = 'home_catalog_v2_' . ($providerKey ?: 'all') . "_{$region}_{$page}";
 
-        $catalog = Cache::remember($cacheKey, 1800, function () use ($providerId, $region, $page) {
-            return $this->tmdbService->getHomeCatalog($providerId, $region, $page);
-        });
+        try {
+            $catalog = Cache::remember($cacheKey, 1800, function () use ($providerId, $region, $page) {
+                return $this->tmdbService->getHomeCatalog($providerId, $region, $page);
+            });
+        } catch (\Throwable $e) {
+            // Fallback: jika database cache gagal (e.g. Neon cold start, transaction error),
+            // langsung fetch dari TMDB tanpa caching daripada 500
+            error_log('Cache::remember failed, falling back to direct fetch: ' . $e->getMessage());
+            $catalog = $this->tmdbService->getHomeCatalog($providerId, $region, $page);
+        }
 
         $response = Inertia::render('Home', array_merge([
             'provider' => $providerKey,
