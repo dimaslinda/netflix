@@ -26,13 +26,26 @@ foreach ($tmpDirs as $dir) {
 }
 
 // Konfigurasi path writable ke /tmp
+putenv('VERCEL=1');
+$_ENV['VERCEL'] = '1';
+$_SERVER['VERCEL'] = '1';
 putenv('APP_STORAGE=/tmp/storage');
+$_ENV['APP_STORAGE'] = '/tmp/storage';
+$_SERVER['APP_STORAGE'] = '/tmp/storage';
 putenv('VIEW_COMPILED_PATH=/tmp/storage/framework/views');
 putenv('APP_CONFIG_CACHE=/tmp/bootstrap/cache/config.php');
 putenv('APP_SERVICES_CACHE=/tmp/bootstrap/cache/services.php');
 putenv('APP_PACKAGES_CACHE=/tmp/bootstrap/cache/packages.php');
 putenv('APP_ROUTES_CACHE=/tmp/bootstrap/cache/routes.php');
 putenv('APP_EVENTS_CACHE=/tmp/bootstrap/cache/events.php');
+
+// Fallback jika APP_KEY belum diset di Vercel Dashboard
+if (empty($_ENV['APP_KEY']) && empty(getenv('APP_KEY'))) {
+    $fallbackKey = 'base64:' . base64_encode('12345678901234567890123456789012');
+    putenv("APP_KEY={$fallbackKey}");
+    $_ENV['APP_KEY'] = $fallbackKey;
+    $_SERVER['APP_KEY'] = $fallbackKey;
+}
 
 // Teruskan ke entrypoint utama Laravel dengan diagnostic fallback
 try {
