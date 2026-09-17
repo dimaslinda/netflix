@@ -23,9 +23,41 @@ interface JwPlayerProps {
     onReady?: () => void;
 }
 
+interface JwTrack {
+    name?: string;
+    language?: string;
+}
+
+interface JwTimeEvent {
+    position: number;
+    duration: number;
+}
+
+interface JwAudioTrackEvent {
+    currentTrack: number;
+}
+
+interface JwErrorEvent {
+    message?: string;
+}
+
+interface JwPlayerInstance {
+    setup: (config: Record<string, unknown>) => JwPlayerInstance;
+    on: (event: string, callback: (data?: unknown) => void) => void;
+    getAudioTracks: () => JwTrack[] | undefined;
+    setCurrentAudioTrack: (index: number) => void;
+    play: () => void;
+    pause: () => void;
+    seek: (position: number) => void;
+    setMute: (muted: boolean) => void;
+    setVolume: (volume: number) => void;
+    setFullscreen: (state: boolean) => void;
+    remove: () => void;
+}
+
 declare global {
     interface Window {
-        jwplayer: any;
+        jwplayer?: (element: HTMLElement) => JwPlayerInstance;
     }
 }
 
@@ -37,7 +69,7 @@ export default function JwPlayer({
     onReady,
 }: JwPlayerProps) {
     const playerRef = useRef<HTMLDivElement>(null);
-    const jwPlayerInstance = useRef<any>(null);
+    const jwPlayerInstance = useRef<JwPlayerInstance | null>(null);
 
     const [isLoading, setIsLoading] = useState(true);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -54,7 +86,7 @@ export default function JwPlayer({
     // Load JWPlayer script
     useEffect(() => {
         if (window.jwplayer) {
-            setJwLoaded(true);
+            queueMicrotask(() => setJwLoaded(true));
             return;
         }
 
@@ -77,7 +109,7 @@ export default function JwPlayer({
 
     // Initialize player when script is loaded
     useEffect(() => {
-        if (!jwLoaded || !playerRef.current || !src) return;
+        if (!jwLoaded || !playerRef.current || !src || !window.jwplayer) return;
 
         try {
             jwPlayerInstance.current = window
@@ -103,7 +135,7 @@ export default function JwPlayer({
                 // Get audio tracks
                 const tracks = player.getAudioTracks() || [];
                 setAudioTracks(
-                    tracks.map((t: any, idx: number) => ({
+                    tracks.map((t, idx: number) => ({
                         id: idx,
                         name: t.name || `Audio ${idx + 1}`,
                         language: t.language || 'unknown',
@@ -113,21 +145,27 @@ export default function JwPlayer({
 
             player.on('play', () => setIsPlaying(true));
             player.on('pause', () => setIsPlaying(false));
-            player.on('time', (e: any) => {
+            player.on('time', (data?: unknown) => {
+                const e = (data as JwTimeEvent) || { position: 0, duration: 0 };
                 setCurrentTime(e.position);
                 setDuration(e.duration);
             });
-            player.on('audioTrackChanged', (e: any) => {
+            player.on('audioTrackChanged', (data?: unknown) => {
+                const e = (data as JwAudioTrackEvent) || { currentTrack: 0 };
                 setCurrentAudioTrack(e.currentTrack);
             });
-            player.on('error', (e: any) => {
+            player.on('error', (data?: unknown) => {
+                const e = (data as JwErrorEvent) || {};
                 const msg = e.message || 'Playback error';
                 setError(msg);
                 onError?.(msg);
             });
-        } catch (e: any) {
-            setError('Failed to initialize player');
-            onError?.(e.message);
+        } catch (e: unknown) {
+            const err = e instanceof Error ? e.message : 'Failed to initialize player';
+            queueMicrotask(() => {
+                setError('Failed to initialize player');
+                onError?.(err);
+            });
         }
 
         return () => {

@@ -16,7 +16,7 @@ import {
     Volume2,
     VolumeX,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface NetMirrorWatchProps {
     contentId: string;
@@ -48,10 +48,10 @@ export default function NetMirrorWatch({ contentId }: NetMirrorWatchProps) {
     const [showAudioMenu, setShowAudioMenu] = useState(false);
     const [showControls, setShowControls] = useState(true);
     const [isFullscreen, setIsFullscreen] = useState(false);
-    const [volume, setVolume] = useState(1);
+    const [volume] = useState(1);
 
     // Fetch stream URL
-    const fetchStream = async () => {
+    const fetchStream = useCallback(async () => {
         setIsLoading(true);
         setError(null);
 
@@ -73,13 +73,13 @@ export default function NetMirrorWatch({ contentId }: NetMirrorWatchProps) {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [contentId]);
 
     useEffect(() => {
         if (contentId) {
-            fetchStream();
+            void fetchStream();
         }
-    }, [contentId]);
+    }, [contentId, fetchStream]);
 
     // Initialize HLS.js
     useEffect(() => {

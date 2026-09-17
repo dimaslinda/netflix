@@ -1,4 +1,4 @@
-# WeFlix / Layar - Platform Streaming Video Berbasis Laravel 12 & React (Inertia.js)
+# LayarFlix - Platform Streaming Video Berbasis Laravel 12 & React (Inertia.js)
 
 Aplikasi web streaming video premium dengan pengalaman visual ala **Netflix** dan fitur katalog studio ala **Disney+ Hotstar**. Dibangun menggunakan arsitektur modern berbasis **Laravel 12**, **Inertia.js v2**, **React 19**, **TypeScript**, dan **Tailwind CSS v4**, terintegrasi langsung dengan API The Movie Database (TMDB) dan sistem pemutar video multi-server.
 
@@ -21,11 +21,13 @@ Aplikasi web streaming video premium dengan pengalaman visual ala **Netflix** da
 ## Fitur Utama
 
 ### 1. Desain Antarmuka Sinematik (Netflix Dark Experience)
+
 - Desain bertema gelap bioskop premium dengan animasi transisi halus.
 - Hero Carousel interaktif dengan cuplikan trailer latar, sinopsis, tombol tonton cepat, dan modal detail film.
 - Navigasi responsif (Desktop & Mobile Drawer) dengan tap target minimal 44px ramah perangkat sentuh.
 
 ### 2. Multi-Server Streaming Video Player
+
 - Pemutar video fleksibel dengan dukungan multi-server bawaan untuk menjamin ketersediaan tontonan:
   - **Server 1 (Default)**: VidLink (Dukungan subtitle dan pemutaran cepat)
   - **Server 2**: VidNest
@@ -36,6 +38,7 @@ Aplikasi web streaming video premium dengan pengalaman visual ala **Netflix** da
 - Tombol navigasi kembali (*Back Button*) cerdas yang mengarahkan pemirsa kembali ke riwayat rute sebelumnya tanpa memicu reload halaman server.
 
 ### 3. Halaman Khusus Brand & Studio (Ala Disney+ Hotstar)
+
 - Rute khusus `/browse/disney` yang menyajikan katalog studio papan atas dunia:
   - **Walt Disney Pictures**
   - **Pixar Animation Studios**
@@ -45,6 +48,7 @@ Aplikasi web streaming video premium dengan pengalaman visual ala **Netflix** da
 - Filter genre sekunder instan (Semua, Animasi, Laga, Petualangan, Fiksi Ilmiah, Dokumenter).
 
 ### 4. Sistem Akun Pengguna Mandiri Khas Netflix (`/account`)
+
 - Menggantikan sepenuhnya dashboard admin generik dengan halaman akun bernuansa Netflix murni (tanpa sidebar admin).
 - **Preset Avatar Netflix**: 6 pilihan avatar SVG senyuman khas (*Merah Netflix*, *Biru Cool*, *Kuning Ceria*, *Hijau Santai*, *Ungu Misterius*, *Hitam Ninja*).
 - **Pengaturan Profil**: Ubah nama tampilan, avatar, dan alamat email.
@@ -55,6 +59,7 @@ Aplikasi web streaming video premium dengan pengalaman visual ala **Netflix** da
 - **Riwayat Tontonan (Watch History)**: Melacak episode terakhir, progres durasi waktu tonton (*resume playback*), dan stempel waktu tonton.
 
 ### 5. Pencarian dan Kategori Lengkap
+
 - Pencarian instan (debounced search) mencakup film dan serial TV.
 - Filter genre film: Laga, Komedi, Horor, Fiksi Ilmiah, Drama Korea, Anime, dan Dokumenter.
 - Kategori bawaan: *Trending*, *Popular TV*, *Now Playing*, dan *Top Rated*.
@@ -64,6 +69,7 @@ Aplikasi web streaming video premium dengan pengalaman visual ala **Netflix** da
 ## Arsitektur & Stack Teknologi
 
 ### Backend
+
 - **Framework**: Laravel 12.x (PHP 8.2+)
 - **Routing & Rendering**: Inertia.js Laravel Adapter v2.0
 - **Autentikasi**: Laravel Fortify
@@ -71,6 +77,7 @@ Aplikasi web streaming video premium dengan pengalaman visual ala **Netflix** da
 - **Integrasi Pihak Ketiga**: HTTP Client Laravel ke The Movie Database (TMDB) API v3
 
 ### Frontend
+
 - **Library UI**: React 19 dengan TypeScript strict typing
 - **Styling**: Tailwind CSS v4, Radix UI Primitives, Lucide React Icons
 - **Animasi & Transisi**: Framer Motion
@@ -81,6 +88,7 @@ Aplikasi web streaming video premium dengan pengalaman visual ala **Netflix** da
 ## Prasyarat Sistem
 
 Sebelum memulai instalasi, pastikan lingkungan pengembangan Anda telah memenuhi spesifikasi berikut:
+
 - **PHP**: Versi 8.2 atau lebih baru
 - **Composer**: Versi 2.x
 - **Node.js**: Versi 20.x atau 22.x LTS
@@ -123,7 +131,7 @@ php artisan migrate
 Buka berkas `.env` dan lengkapi konfigurasi utama berikut:
 
 ```env
-APP_NAME="WeFlix"
+APP_NAME="LayarFlix"
 APP_ENV=local
 APP_KEY=base64:...
 APP_DEBUG=true
@@ -213,18 +221,23 @@ netflix/
 ## Panduan Pengujian & Build
 
 ### Pemeriksaan Tipe TypeScript
+
 Untuk memvalidasi integritas pengetikan kode TypeScript tanpa kompilasi penuh:
+
 ```bash
 npm run types
 ```
 
 ### Build Aset Produksi
+
 Untuk mengompilasi bundel JavaScript, CSS, dan aset statis untuk deployment produksi:
+
 ```bash
 npm run build
 ```
 
 ### Format dan Linting Kode
+
 ```bash
 # Format kode frontend
 npm run format

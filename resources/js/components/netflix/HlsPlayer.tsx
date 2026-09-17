@@ -98,8 +98,10 @@ export default function HlsPlayer({
                 onReady?.();
             });
         } else {
-            setError('HLS is not supported in this browser');
-            onError?.('HLS is not supported in this browser');
+            queueMicrotask(() => {
+                setError('HLS is not supported in this browser');
+                onError?.('HLS is not supported in this browser');
+            });
         }
     }, [src, onError, onReady]);
 

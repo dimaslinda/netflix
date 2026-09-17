@@ -12,7 +12,6 @@ interface NetMirrorPlayerProps {
 export default function NetMirrorPlayer({
     title,
     streamUrl,
-    poster,
     onError,
     onReady,
 }: NetMirrorPlayerProps) {
@@ -22,8 +21,10 @@ export default function NetMirrorPlayer({
     useEffect(() => {
         if (streamUrl) {
             console.log('Stream URL:', streamUrl);
-            setIsLoading(false);
-            onReady?.();
+            queueMicrotask(() => {
+                setIsLoading(false);
+                onReady?.();
+            });
         }
     }, [streamUrl, onReady]);
 
@@ -93,6 +94,7 @@ export default function NetMirrorPlayer({
 
             {/* Iframe Player */}
             <iframe
+                title={title || 'Pemutar Video'}
                 src={embedUrl}
                 className="h-full w-full border-0"
                 allow="autoplay; fullscreen; encrypted-media; picture-in-picture"

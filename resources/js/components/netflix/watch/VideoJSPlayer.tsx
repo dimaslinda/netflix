@@ -4,7 +4,7 @@ import Player from 'video.js/dist/types/player';
 import 'video.js/dist/video-js.css';
 
 interface VideoJSPlayerProps {
-    options: any;
+    options: Record<string, unknown>;
     onReady?: (player: Player) => void;
 }
 
@@ -26,15 +26,19 @@ export default function VideoJSPlayer({
                 videoElement,
                 options,
                 () => {
-                    onReady && onReady(player);
+                    onReady?.(player);
                 },
             ));
         } else if (playerRef.current) {
             const player = playerRef.current;
-            player.autoplay(options.autoplay);
-            player.src(options.sources);
+            if (options.autoplay !== undefined) {
+                player.autoplay(options.autoplay as boolean | 'play' | 'muted' | 'any');
+            }
+            if (options.sources) {
+                player.src(options.sources as Parameters<Player['src']>[0]);
+            }
         }
-    }, [options, videoRef]);
+    }, [options, onReady]);
 
     // Dispose the player on unmount
     useEffect(() => {
