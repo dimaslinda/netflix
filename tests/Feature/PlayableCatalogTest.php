@@ -9,6 +9,11 @@ use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
     Cache::flush();
+
+    // TmdbService berhenti lebih awal tanpa kunci API. CI memakai .env.example
+    // yang kuncinya kosong, jadi tanpa ini Http::fake TMDB tidak pernah
+    // dipanggil dan setiap pencocokan gagal.
+    config(['services.tmdb.key' => 'kunci-uji']);
 });
 
 describe('pembersihan judul Archive', function () {
