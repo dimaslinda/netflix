@@ -1,0 +1,66 @@
+name: android-apk
+
+# Membangun APK debug untuk Android TV / HP tanpa Android Studio lokal.
+# APK memuat situs dari server.url di capacitor.config.ts, jadi perubahan
+# web saja tidak butuh APK baru. Workflow ini berjalan otomatis hanya bila
+# kode native atau konfigurasi Capacitor berubah, dan bisa dijalankan manual
+# lewat tab Actions > android-apk > Run workflow.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'android/**'
+      - 'capacitor.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/android-apk.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # capacitor.settings.gradle menunjuk modul Android di node_modules.
+      - name: Install Node Dependencies
+        run: npm ci
+
+      # Menyalin aset web, capacitor.config.json, dan daftar plugin yang
+      # di-gitignore ke proyek Android.
+      - name: Capacitor Sync
+        run: npx cap sync android
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-${{ github.sha }}
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+          if-no-files-found: error
