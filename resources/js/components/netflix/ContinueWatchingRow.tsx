@@ -94,14 +94,12 @@ export default function ContinueWatchingRow({
         return null;
     }
 
+    // Jarak tepi halaman dipasang di judul dan di dalam rel, bukan di
+    // <section>. Bila di <section>, rel memotong cincin fokus dan pembesaran
+    // kartu pertama dan terakhir. Polanya sama dengan MovieRow.
     return (
-        <section
-            className={cn(
-                'relative space-y-2 px-4 md:px-12 lg:px-16',
-                className,
-            )}
-        >
-            <div className="flex items-center justify-between">
+        <section className={cn('relative space-y-2', className)}>
+            <div className="flex items-center justify-between px-4 md:px-12 lg:px-16">
                 <h2 className="text-sm font-bold tracking-wider text-white uppercase md:text-base lg:text-lg">
                     Lanjutkan Menonton
                 </h2>
@@ -128,7 +126,8 @@ export default function ContinueWatchingRow({
                 <div
                     ref={containerRef}
                     onScroll={updateArrows}
-                    className="no-scrollbar flex gap-4 overflow-x-auto scroll-smooth py-3"
+                    data-tv-row
+                    className="no-scrollbar flex gap-4 overflow-x-auto scroll-smooth px-4 py-3 md:px-12 lg:px-16"
                 >
                     {items.map((item) => (
                         <ContinueWatchingCard
@@ -185,12 +184,21 @@ function ContinueWatchingCard({
             role="button"
             tabIndex={0}
             onKeyDown={(e) => {
+                // Enter pada tombol hapus di dalam kartu ikut menggelembung ke
+                // sini; tanpa pemeriksaan ini, tombol itu justru memutar film.
+                if (e.target !== e.currentTarget) {
+                    return;
+                }
+
                 if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     onPlay(item);
                 }
             }}
             aria-label={`Lanjutkan ${item.title}`}
+            // Penanda untuk memulihkan fokus remote sesudah kembali dari
+            // pemutar. Lihat lib/tv/return-focus.ts.
+            data-tv-id={`${item.type}-${item.id}`}
             className="cinema-focus group/card relative h-36 w-60 shrink-0 cursor-pointer overflow-hidden rounded-md bg-zinc-900 transition-all duration-300 hover:z-20 hover:scale-105 md:h-44 md:w-72"
         >
             {imageUrl && !imgFailed ? (

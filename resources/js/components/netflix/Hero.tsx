@@ -60,8 +60,17 @@ export default function Hero({ movie, onPlay, onMoreInfo }: HeroProps) {
                 best?: { embed_url?: string | null };
             };
 
-            if (data.best?.embed_url) {
-                setTrailerUrl(`${data.best.embed_url}&mute=1`);
+            const embedUrl = data.best?.embed_url;
+
+            if (embedUrl) {
+                // Server sudah menyertakan mute=1. Parameter kedua membuat
+                // tombol suara gagal, karena replace() hanya mengganti yang
+                // pertama sementara yang tersisa tetap membisukan.
+                setTrailerUrl(
+                    /[?&]mute=\d/.test(embedUrl)
+                        ? embedUrl
+                        : `${embedUrl}&mute=1`,
+                );
                 setIsTrailerVisible(true);
             }
         } catch {
@@ -71,10 +80,22 @@ export default function Hero({ movie, onPlay, onMoreInfo }: HeroProps) {
     }, [mediaType, movie.id]);
 
     useEffect(() => {
+        // Di TV cuplikan tidak dimuat sama sekali. Video YouTube-nya sering
+        // diblokir per wilayah sehingga yang tampil hanya "Video tidak
+        // tersedia", dan satu pemutar YouTube tambahan terlalu berat untuk
+        // perangkat TV.
+        if (isTv) {
+            return;
+        }
+
         const timer = setTimeout(() => void loadTrailer(), TRAILER_DELAY_MS);
 
         return () => clearTimeout(timer);
-    }, [loadTrailer]);
+    }, [isTv, loadTrailer]);
+
+    // Mode TV bisa aktif sesudah cuplikan telanjur dimuat (misalnya lewat
+    // ?tv=1), jadi tampilannya ikut dijaga, bukan hanya pemuatannya.
+    const showTrailer = !isTv && isTrailerVisible && trailerUrl !== null;
 
     // Di TV teks dan tombol tidak menunggu seni kunci: gambar besar lambat
     // dimuat di perangkat TV, dan selama tombol Putar masih transparan remote
@@ -90,8 +111,12 @@ export default function Hero({ movie, onPlay, onMoreInfo }: HeroProps) {
     };
 
     return (
+        // Di TV (sekitar 960x540) panel dipendekkan agar judul baris pertama
+        // sudah mengintip di layar pertama. Ukuran judul, jarak, dan potongan
+        // sinopsis di bawah dihitung supaya puncak judul tetap di bawah bilah
+        // navigasi 64px walau judulnya dua baris.
         <section
-            className="relative flex min-h-[520px] flex-col justify-end pb-16 md:h-[76vh] md:max-h-[760px] md:pb-24 lg:pb-32"
+            className="relative flex min-h-[520px] flex-col justify-end pb-16 md:h-[76vh] md:max-h-[760px] md:pb-24 lg:pb-32 tv:h-[66vh] tv:min-h-0 tv:pb-12"
             aria-label={`Sorotan: ${title}`}
         >
             <div className="absolute inset-0 overflow-hidden bg-[var(--cinema-raised)]">
@@ -102,7 +127,7 @@ export default function Hero({ movie, onPlay, onMoreInfo }: HeroProps) {
                         onLoad={() => setIsArtLoaded(true)}
                         className={cn(
                             'absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-1000',
-                            isTrailerVisible && trailerUrl
+                            showTrailer
                                 ? 'opacity-0'
                                 : isArtLoaded
                                   ? 'opacity-100'
@@ -111,7 +136,7 @@ export default function Hero({ movie, onPlay, onMoreInfo }: HeroProps) {
                     />
                 )}
 
-                {isTrailerVisible && trailerUrl && (
+                {showTrailer && (
                     <iframe
                         src={trailerUrl}
                         title={`Cuplikan ${title}`}
@@ -140,12 +165,12 @@ export default function Hero({ movie, onPlay, onMoreInfo }: HeroProps) {
                         : 'translate-y-6 opacity-0',
                 )}
             >
-                <h1 className="text-3xl font-black tracking-tight text-[var(--cinema-ink)] md:text-5xl lg:text-6xl">
+                <h1 className="text-3xl font-black tracking-tight text-[var(--cinema-ink)] md:text-5xl lg:text-6xl tv:line-clamp-2 tv:text-4xl">
                     {title}
                 </h1>
 
                 {(releaseYear ?? rating) && (
-                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-[var(--cinema-ink-soft)]">
+                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-[var(--cinema-ink-soft)] tv:mt-2">
                         {releaseYear && <span>{releaseYear}</span>}
                         {rating && (
                             <span className="flex items-center gap-1.5">
@@ -163,14 +188,14 @@ export default function Hero({ movie, onPlay, onMoreInfo }: HeroProps) {
                 )}
 
                 {overview && (
-                    <p className="mt-4 text-sm leading-relaxed text-[var(--cinema-ink-soft)] md:text-base">
+                    <p className="mt-4 text-sm leading-relaxed text-[var(--cinema-ink-soft)] md:text-base tv:mt-2 tv:line-clamp-2">
                         {overview.length > OVERVIEW_LIMIT
                             ? `${overview.slice(0, OVERVIEW_LIMIT).trimEnd()}...`
                             : overview}
                     </p>
                 )}
 
-                <div className="mt-6 flex flex-wrap items-center gap-3">
+                <div className="mt-6 flex flex-wrap items-center gap-3 tv:mt-4">
                     <button
                         type="button"
                         onClick={() => onPlay?.(movie)}
@@ -194,7 +219,7 @@ export default function Hero({ movie, onPlay, onMoreInfo }: HeroProps) {
                         Rincian
                     </button>
 
-                    {trailerUrl && (
+                    {showTrailer && (
                         <button
                             type="button"
                             onClick={toggleTrailerSound}

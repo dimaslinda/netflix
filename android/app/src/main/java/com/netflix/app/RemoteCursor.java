@@ -19,7 +19,7 @@ import android.webkit.WebView;
  * Pemutar film berjalan di iframe milik pihak ketiga. Halaman web tidak bisa
  * menekan tombol di dalam iframe lintas asal, dan tombol Putar, CC, maupun
  * pengaturan pemutar dirancang untuk sentuhan atau tetikus. Selama mode kursor
- * aktif, panah menggeser kursor dan OK dikirim ke WebView sebagai ketukan
+ * aktif, panah menggeser kursor dan OK dikirim ke WebView sebagai ketukan jari
  * sungguhan di posisi kursor, jadi kontrol apa pun di dalam iframe bisa
  * dijangkau tanpa bergantung pada pemutar tertentu.
  *
@@ -28,6 +28,11 @@ import android.webkit.WebView;
  * tidak pernah terjebak di mode kursor.
  */
 final class RemoteCursor {
+
+    /** Dipanggil setiap kali mode kursor menyala atau mati. */
+    interface EnabledListener {
+        void onEnabledChanged(boolean enabled);
+    }
 
     /** Langkah gerak untuk satu tekanan panah. */
     private static final float BASE_STEP_DP = 14f;
@@ -38,14 +43,28 @@ final class RemoteCursor {
     /** Pertambahan langkah per pengulangan tombol saat ditahan. */
     private static final float STEP_GROWTH_PER_REPEAT = 0.35f;
 
+    /**
+     * Ketukan dilepas otomatis setelah selama ini, di bawah batas tekan-lama
+     * Android. OK yang ditahan sedikit lebih lama tetap menjadi klik, bukan
+     * membuka menu konteks atau memilih teks di dalam pemutar.
+     */
+    private static final long TAP_MAX_MS = 350;
+
     private final WebView webView;
     private final CursorView cursorView;
     private final float density;
 
+    private EnabledListener enabledListener;
     private boolean enabled = false;
     private float x;
     private float y;
     private long touchDownTime = -1;
+
+    private final Runnable finishHeldTap = () -> {
+        if (touchDownTime >= 0) {
+            dispatchTouch(MotionEvent.ACTION_UP);
+        }
+    };
 
     RemoteCursor(Activity activity, WebView webView) {
         this.webView = webView;
@@ -57,6 +76,10 @@ final class RemoteCursor {
             cursorView,
             new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         );
+    }
+
+    void setEnabledListener(EnabledListener listener) {
+        this.enabledListener = listener;
     }
 
     boolean isEnabled() {
@@ -78,8 +101,13 @@ final class RemoteCursor {
             redraw();
             dispatchHover();
         } else {
+            webView.removeCallbacks(finishHeldTap);
             cancelPendingTouch();
             cursorView.setVisibility(View.GONE);
+        }
+
+        if (enabledListener != null) {
+            enabledListener.onEnabledChanged(next);
         }
     }
 
@@ -103,14 +131,21 @@ final class RemoteCursor {
                     move(event.getKeyCode(), event.getRepeatCount());
                 }
                 return true;
+            // Semua tombol "pilih" menurut panduan Android TV. Remote Fire TV
+            // dan gamepad mengirim BUTTON_A, sebagian remote mengirim ENTER.
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
             case KeyEvent.KEYCODE_NUMPAD_ENTER:
-                // Tekan dan lepas dipisah, jadi menahan OK menjadi tekan lama.
-                if (action == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+            case KeyEvent.KEYCODE_BUTTON_A:
+            case KeyEvent.KEYCODE_BUTTON_SELECT:
+                if (action == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0 && touchDownTime < 0) {
                     dispatchTouch(MotionEvent.ACTION_DOWN);
+                    webView.postDelayed(finishHeldTap, TAP_MAX_MS);
                 } else if (action == KeyEvent.ACTION_UP) {
-                    dispatchTouch(MotionEvent.ACTION_UP);
+                    webView.removeCallbacks(finishHeldTap);
+                    if (touchDownTime >= 0) {
+                        dispatchTouch(MotionEvent.ACTION_UP);
+                    }
                 }
                 return true;
             case KeyEvent.KEYCODE_BACK:
@@ -152,13 +187,32 @@ final class RemoteCursor {
     }
 
     /**
+     * Membuat MotionEvent satu penunjuk dengan tipe alat yang jelas. Versi
+     * singkat MotionEvent.obtain(..., x, y, meta) memberi tipe UNKNOWN, yang
+     * oleh Chromium diteruskan sebagai pointerType kosong; sebagian pemutar
+     * mengabaikan ketukan seperti itu.
+     */
+    private MotionEvent obtainEvent(long downTime, long eventTime, int action, int toolType, int source) {
+        MotionEvent.PointerProperties[] properties = { new MotionEvent.PointerProperties() };
+        properties[0].id = 0;
+        properties[0].toolType = toolType;
+
+        MotionEvent.PointerCoords[] coords = { new MotionEvent.PointerCoords() };
+        coords[0].x = x;
+        coords[0].y = y;
+        coords[0].pressure = 1f;
+        coords[0].size = 1f;
+
+        return MotionEvent.obtain(downTime, eventTime, action, 1, properties, coords, 0, 0, 1f, 1f, 0, 0, source, 0);
+    }
+
+    /**
      * Gerak tetikus maya. Banyak pemutar hanya menampilkan bilah kontrolnya
      * saat tetikus bergerak di atas video.
      */
     private void dispatchHover() {
         long now = SystemClock.uptimeMillis();
-        MotionEvent event = MotionEvent.obtain(now, now, MotionEvent.ACTION_HOVER_MOVE, x, y, 0);
-        event.setSource(InputDevice.SOURCE_MOUSE);
+        MotionEvent event = obtainEvent(now, now, MotionEvent.ACTION_HOVER_MOVE, MotionEvent.TOOL_TYPE_MOUSE, InputDevice.SOURCE_MOUSE);
         webView.dispatchGenericMotionEvent(event);
         event.recycle();
     }
@@ -173,8 +227,7 @@ final class RemoteCursor {
             return;
         }
 
-        MotionEvent event = MotionEvent.obtain(touchDownTime, now, action, x, y, 0);
-        event.setSource(InputDevice.SOURCE_TOUCHSCREEN);
+        MotionEvent event = obtainEvent(touchDownTime, now, action, MotionEvent.TOOL_TYPE_FINGER, InputDevice.SOURCE_TOUCHSCREEN);
         webView.dispatchTouchEvent(event);
         event.recycle();
 
@@ -189,8 +242,7 @@ final class RemoteCursor {
         }
 
         long now = SystemClock.uptimeMillis();
-        MotionEvent event = MotionEvent.obtain(touchDownTime, now, MotionEvent.ACTION_CANCEL, x, y, 0);
-        event.setSource(InputDevice.SOURCE_TOUCHSCREEN);
+        MotionEvent event = obtainEvent(touchDownTime, now, MotionEvent.ACTION_CANCEL, MotionEvent.TOOL_TYPE_FINGER, InputDevice.SOURCE_TOUCHSCREEN);
         webView.dispatchTouchEvent(event);
         event.recycle();
         touchDownTime = -1;

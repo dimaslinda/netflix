@@ -49,8 +49,9 @@ export default function BrowseCategory({
                 <header className="mb-8">
                     {category === 'kids' ? (
                         <div className="space-y-3">
+                            {/* Lencana teks saja: emoji di sini pernah tampil
+                                sebagai karakter rusak di WebView TV. */}
                             <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-500/10 px-3.5 py-1 text-xs font-bold text-amber-400">
-                                <span>🧸</span>
                                 <span>ZONA RAMAH ANAK & KELUARGA</span>
                             </div>
                             <h1 className="text-2xl font-black tracking-tight text-white md:text-3xl">
@@ -92,7 +93,10 @@ export default function BrowseCategory({
                     </div>
                 ) : (
                     <>
-                        <ul className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+                        {/* Di TV (sekitar 960px) sm:grid-cols-3 membuat kartu
+                            setinggi satu layar penuh dan bagian atasnya
+                            tertutup bilah navigasi. */}
+                        <ul className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 tv:grid-cols-6 tv:gap-x-4">
                             {items.map((movie) => (
                                 <li key={movie.id}>
                                     <MovieCard

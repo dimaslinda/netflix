@@ -126,14 +126,30 @@ export default function Navbar({ activePath }: NavbarProps) {
     const resolvedActivePath =
         activePath ??
         (typeof window !== 'undefined' ? window.location.pathname : '/');
+    const isOnSearch = resolvedActivePath === '/search';
 
     const handleLogout = () => {
         router.post('/logout');
     };
 
+    const handleSearchClick = () => {
+        // Di halaman cari, kunjungan ulang ke /search menghapus kueri yang
+        // sedang diketik. Cukup kembalikan fokus ke kolomnya.
+        if (isOnSearch) {
+            document.getElementById('search-input')?.focus();
+
+            return;
+        }
+
+        router.visit('/search');
+    };
+
     return (
         <>
+            {/* data-tv-fixed: bilah ini menempel di atas layar, jadi navigasi
+                remote baru menujunya bila atas/bawah tidak punya tujuan lain. */}
             <header
+                data-tv-fixed
                 className={cn(
                     'fixed top-0 z-50 flex h-16 w-full items-center transition-colors duration-300',
                     isScrolled
@@ -147,14 +163,22 @@ export default function Navbar({ activePath }: NavbarProps) {
                 >
                     <BrandMark />
 
-                    {/* Navigasi Desktop */}
-                    <ul className="ml-8 hidden items-center gap-5 lg:flex">
+                    {/* Navigasi Desktop. Di TV (lebar sekitar 960px) daftar ini
+                        tetap tampil dengan jarak lebih rapat, supaya Film,
+                        Serial, dan Live TV tidak perlu dicapai lewat laci menu
+                        yang butuh banyak tekanan tombol. */}
+                    <ul className="ml-8 hidden items-center gap-5 lg:flex tv:ml-5 tv:flex tv:gap-3">
                         {PRIMARY_LINKS.map((link) => (
                             <li key={link.href}>
                                 <Link
                                     href={link.href}
+                                    aria-current={
+                                        resolvedActivePath === link.href
+                                            ? 'page'
+                                            : undefined
+                                    }
                                     className={cn(
-                                        'cinema-focus flex items-center rounded-sm text-sm transition',
+                                        'cinema-focus flex items-center rounded-sm text-sm transition tv:py-2',
                                         resolvedActivePath === link.href
                                             ? 'text-[var(--cinema-ink)] font-bold'
                                             : 'text-[var(--cinema-ink-soft)] hover:text-[var(--cinema-ink)]',
@@ -175,8 +199,9 @@ export default function Navbar({ activePath }: NavbarProps) {
                     <div className="ml-auto flex items-center gap-2">
                         <button
                             type="button"
-                            onClick={() => router.visit('/search')}
+                            onClick={handleSearchClick}
                             aria-label="Cari judul"
+                            aria-current={isOnSearch ? 'page' : undefined}
                             className="cinema-focus flex h-11 w-11 items-center justify-center rounded-full text-[var(--cinema-ink)] transition hover:bg-white/10"
                         >
                             <Search className="h-5 w-5" aria-hidden="true" />

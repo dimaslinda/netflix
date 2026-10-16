@@ -798,7 +798,10 @@ export default function LiveTv({
                     {/* KOLOM KANAN / BAWAH: DAFTAR CHANNEL & KATEGORI (EPG Mini) */}
                     <div className="w-full lg:w-96 flex flex-col gap-4 tv:w-72 tv:shrink-0">
                         {/* Filter Kategori Chips */}
-                        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                        <div
+                            data-tv-row
+                            className="flex items-center gap-1.5 overflow-x-auto p-1 no-scrollbar"
+                        >
                             {categories.map((cat) => {
                                 const isSelected = selectedCategory === cat.id;
                                 return (

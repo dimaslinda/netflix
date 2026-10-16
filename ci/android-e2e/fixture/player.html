@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="id">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>fixture taps:0</title>
+        <!--
+  Pengganti pemutar pihak ketiga untuk uji kursor remote native.
+
+  Disajikan dari port lain (http://10.0.2.2:8001) daripada aplikasi
+  (http://10.0.2.2:8000), jadi halaman tonton tidak bisa membaca atau
+  menekan apa pun di sini: satu-satunya jalan masuk adalah input sungguhan
+  dari WebView, yaitu ketukan yang dikirim RemoteCursor.java.
+
+  Warna latar sengaja gelap dan tidak ada yang putih di bagian tengah layar,
+  supaya kursor native (lingkaran putih) bisa dideteksi dari tangkapan layar.
+  Tanda ketukan digambar kuning, bukan putih, karena alasan yang sama.
+-->
+        <style>
+            html,
+            body {
+                margin: 0;
+                height: 100%;
+                overflow: hidden;
+                background: #0b2a6f;
+            }
+            #target {
+                position: fixed;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+                border: 0;
+                background: #0b2a6f;
+                cursor: pointer;
+            }
+            #status {
+                position: fixed;
+                left: 12px;
+                bottom: 12px;
+                pointer-events: none;
+                font:
+                    600 14px/1.3 system-ui,
+                    sans-serif;
+                color: #facc15;
+            }
+            .mark {
+                position: fixed;
+                width: 8px;
+                height: 8px;
+                margin: -4px 0 0 -4px;
+                border-radius: 50%;
+                background: #facc15;
+                pointer-events: none;
+            }
+        </style>
+    </head>
+    <body>
+        <button
+            id="target"
+            type="button"
+            aria-label="Target uji kursor"
+        ></button>
+        <div id="status">klik 0 / gerak 0</div>
+        <script>
+            (function () {
+                var state = (window.__e2e = {
+                    ready: true,
+                    origin: location.origin,
+                    clicks: [],
+                    pointerdowns: [],
+                    touches: [],
+                    moves: [],
+                });
+                var status = document.getElementById('status');
+
+                function snapshot(e) {
+                    return {
+                        type: e.type,
+                        x: e.clientX,
+                        y: e.clientY,
+                        trusted: e.isTrusted,
+                        pointerType:
+                            typeof e.pointerType === 'string'
+                                ? e.pointerType
+                                : null,
+                        t: Date.now(),
+                    };
+                }
+
+                function render() {
+                    status.textContent =
+                        'klik ' +
+                        state.clicks.length +
+                        ' / gerak ' +
+                        state.moves.length;
+                    document.title = 'fixture taps:' + state.clicks.length;
+                }
+
+                // Bukti kedua di luar DevTools: server fixture mencatat setiap ketukan di
+                // log aksesnya. beacon.txt ada di folder ini, jadi permintaannya 200.
+                function beacon(kind, e) {
+                    try {
+                        var url =
+                            '/beacon.txt?kind=' +
+                            kind +
+                            '&x=' +
+                            Math.round(e.clientX) +
+                            '&y=' +
+                            Math.round(e.clientY) +
+                            '&trusted=' +
+                            (e.isTrusted ? 1 : 0) +
+                            '&pt=' +
+                            encodeURIComponent(e.pointerType || '') +
+                            '&t=' +
+                            Date.now();
+                        fetch(url, { cache: 'no-store' }).catch(function () {});
+                    } catch (_) {}
+                }
+
+                document.addEventListener(
+                    'pointerdown',
+                    function (e) {
+                        state.pointerdowns.push(snapshot(e));
+                    },
+                    true,
+                );
+
+                document.addEventListener(
+                    'touchstart',
+                    function (e) {
+                        var t = e.touches && e.touches[0];
+                        state.touches.push({
+                            x: t ? t.clientX : null,
+                            y: t ? t.clientY : null,
+                            trusted: e.isTrusted,
+                            t: Date.now(),
+                        });
+                    },
+                    { capture: true, passive: true },
+                );
+
+                // Gerak tetikus maya dari RemoteCursor.dispatchHover (ACTION_HOVER_MOVE).
+                // pointermove, bukan mousemove, supaya pointerType ikut tercatat.
+                document.addEventListener(
+                    'pointermove',
+                    function (e) {
+                        state.moves.push(snapshot(e));
+                        if (state.moves.length > 200) state.moves.shift();
+                        render();
+                    },
+                    true,
+                );
+
+                document
+                    .getElementById('target')
+                    .addEventListener('click', function (e) {
+                        state.clicks.push(snapshot(e));
+                        var mark = document.createElement('div');
+                        mark.className = 'mark';
+                        mark.style.left = e.clientX + 'px';
+                        mark.style.top = e.clientY + 'px';
+                        document.body.appendChild(mark);
+                        render();
+                        beacon('click', e);
+                    });
+
+                render();
+            })();
+        </script>
+    </body>
+</html>

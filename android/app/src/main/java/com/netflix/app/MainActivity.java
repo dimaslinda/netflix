@@ -4,6 +4,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.webkit.WebSettings;
+import androidx.activity.OnBackPressedCallback;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.annotation.CapacitorPlugin;
@@ -60,7 +61,30 @@ public class MainActivity extends BridgeActivity {
             settings.setJavaScriptCanOpenWindowsAutomatically(false);
 
             remoteCursor = new RemoteCursor(this, this.bridge.getWebView());
+            installCursorBackGuard();
         }
+    }
+
+    /**
+     * Jaring pengaman tombol Back. Mulai Android 16 (targetSdk 36) KEYCODE_BACK
+     * tidak lagi sampai ke dispatchKeyEvent, jadi RemoteCursor tidak bisa
+     * mematikan kursornya sendiri. Callback ini didaftarkan sesudah milik
+     * plugin App, sehingga berjalan lebih dulu: mematikan kursor, lalu
+     * meneruskan Back ke plugin App agar halaman web membuka menunya kembali.
+     * Hanya aktif selama kursor menyala.
+     */
+    private void installCursorBackGuard() {
+        final OnBackPressedCallback cursorBack = new OnBackPressedCallback(false) {
+            @Override
+            public void handleOnBackPressed() {
+                remoteCursor.setEnabled(false);
+                setEnabled(false);
+                getOnBackPressedDispatcher().onBackPressed();
+            }
+        };
+
+        getOnBackPressedDispatcher().addCallback(this, cursorBack);
+        remoteCursor.setEnabledListener(cursorBack::setEnabled);
     }
 
     RemoteCursor getRemoteCursor() {

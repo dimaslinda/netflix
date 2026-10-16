@@ -81,6 +81,7 @@ export default function Top10Row({ title, movies, onSelect }: Top10RowProps) {
                 {/* Top 10 Cards Container */}
                 <div
                     ref={rowRef}
+                    data-tv-row
                     className="scrollbar-hide flex gap-0 overflow-x-scroll overflow-y-visible scroll-smooth px-4 py-4 md:px-12 lg:px-16"
                     onScroll={handleScroll}
                 >
@@ -88,7 +89,7 @@ export default function Top10Row({ title, movies, onSelect }: Top10RowProps) {
                         const title = movie.title || movie.name;
                         const imageUrl = movie.poster_path
                             ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-                            : 'https://placehold.co/500x750/1a1a1a/ffffff?text=No+Image';
+                            : 'https://placehold.co/500x750/1a1a1a/ffffff?text=Tanpa+Gambar';
 
                         // Check if new
                         const isNew = movie.release_date
@@ -102,6 +103,7 @@ export default function Top10Row({ title, movies, onSelect }: Top10RowProps) {
                                 key={movie.id}
                                 type="button"
                                 aria-label={`Peringkat ${index + 1}: ${title ?? 'Tanpa judul'}`}
+                                data-tv-id={`${movie.media_type ?? 'movie'}-${movie.id}`}
                                 className="cinema-focus group/card relative flex flex-none cursor-pointer items-end text-left"
                                 onClick={() => onSelect?.(movie)}
                             >
@@ -133,11 +135,12 @@ export default function Top10Row({ title, movies, onSelect }: Top10RowProps) {
                                         </span>
                                     </div>
 
-                                    {/* Badge */}
+                                    {/* Badge. Di TV minimal 12px agar
+                                        terbaca dari sofa. */}
                                     {isNew && (
                                         <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
-                                            <span className="rounded bg-red-600 px-1.5 py-0.5 text-[8px] font-semibold whitespace-nowrap text-white md:text-[9px]">
-                                                Recently added
+                                            <span className="rounded bg-red-600 px-1.5 py-0.5 text-[8px] font-semibold whitespace-nowrap text-white md:text-[9px] tv:text-xs">
+                                                Baru ditambahkan
                                             </span>
                                         </div>
                                     )}

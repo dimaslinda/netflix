@@ -28,10 +28,19 @@ export default function Search({ query, results }: SearchProps) {
     const [loadError, setLoadError] = useState<string | null>(null);
 
     const sentinelRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    // Nomor generasi hasil. Halaman kini tetap terpasang di antara pencarian,
+    // jadi permintaan "muat lagi" untuk kueri lama bisa selesai sesudah hasil
+    // kueri baru tiba. Jawaban dengan generasi lama dibuang, supaya judul
+    // pencarian sebelumnya tidak tercampur ke daftar baru.
+    const generationRef = useRef(0);
 
     // Hasil dari server adalah kebenaran awal setiap kali kueri berubah.
     // Halaman berikutnya ditumpuk di atasnya lewat pengamat di bawah.
     useEffect(() => {
+        generationRef.current += 1;
+        setIsLoadingMore(false);
         setItems(
             (results?.results ?? []).filter(
                 (item) =>
@@ -49,6 +58,7 @@ export default function Search({ query, results }: SearchProps) {
             return;
         }
 
+        const generation = generationRef.current;
         setIsLoadingMore(true);
         setLoadError(null);
 
@@ -70,6 +80,10 @@ export default function Search({ query, results }: SearchProps) {
 
             const data = (await response.json()) as TmdbResponse;
 
+            if (generation !== generationRef.current) {
+                return;
+            }
+
             setItems((previous) => [
                 ...previous,
                 ...(data.results ?? []).filter(
@@ -83,13 +97,19 @@ export default function Search({ query, results }: SearchProps) {
                 setTotalPages(data.total_pages);
             }
         } catch (cause: unknown) {
+            if (generation !== generationRef.current) {
+                return;
+            }
+
             setLoadError(
                 cause instanceof Error
                     ? cause.message
                     : 'Gagal memuat hasil berikutnya.',
             );
         } finally {
-            setIsLoadingMore(false);
+            if (generation === generationRef.current) {
+                setIsLoadingMore(false);
+            }
         }
     }, [isLoadingMore, page, totalPages, query]);
 
@@ -116,15 +136,23 @@ export default function Search({ query, results }: SearchProps) {
 
     // Ketikan menunggu sejenak sebelum menjadi kunjungan halaman, jadi alamat
     // di bilah tetap mencerminkan kueri dan bisa dibagikan.
+    //
+    // Server memangkas spasi di ujung kueri, jadi pembandingnya juga memakai
+    // hasil pangkas: spasi di akhir ketikan tidak memicu kunjungan ulang.
+    // preserveState menjaga halaman tetap terpasang, sehingga huruf yang
+    // diketik selama pencarian berjalan tidak ikut terhapus. Daftar hasil
+    // tetap direset oleh efek [results] di atas karena prop-nya selalu baru.
     useEffect(() => {
-        if (typed === query) {
+        const wanted = typed.trim();
+
+        if (wanted === query) {
             return;
         }
 
         const timer = setTimeout(() => {
             router.visit(
-                typed ? `/search?q=${encodeURIComponent(typed)}` : '/search',
-                { preserveState: false, replace: true },
+                wanted ? `/search?q=${encodeURIComponent(wanted)}` : '/search',
+                { preserveState: true, preserveScroll: true, replace: true },
             );
         }, TYPING_SETTLE_MS);
 
@@ -140,24 +168,35 @@ export default function Search({ query, results }: SearchProps) {
                 <label htmlFor="search-input" className="sr-only">
                     Cari judul film atau serial
                 </label>
+                {/* Skala fokus global tidak dipakai di kolom ini: kolom yang
+                    membesar menutupi ikon kaca pembesar dan menggeser teksnya.
+                    Tombol silang bawaan peramban disembunyikan karena remote
+                    tidak bisa menjangkaunya; tombol Kosongkan milik halaman
+                    ini yang menggantikannya. */}
                 <div className="relative mx-auto max-w-2xl">
                     <SearchIcon
-                        className="absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-[var(--cinema-ink-faint)]"
+                        className="pointer-events-none absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-[var(--cinema-ink-faint)]"
                         aria-hidden="true"
                     />
                     <input
+                        ref={inputRef}
                         id="search-input"
                         type="search"
                         value={typed}
                         autoFocus
                         onChange={(event) => setTyped(event.target.value)}
                         placeholder="Ketik judul film atau serial"
-                        className="cinema-focus h-14 w-full rounded-[var(--cinema-radius-panel)] border border-[var(--cinema-line)] bg-[var(--cinema-raised)] pr-12 pl-12 text-[15px] text-[var(--cinema-ink)] placeholder:text-[var(--cinema-ink-faint)]"
+                        className="cinema-focus h-14 w-full rounded-[var(--cinema-radius-panel)] border border-[var(--cinema-line)] bg-[var(--cinema-raised)] pr-12 pl-12 text-[15px] text-[var(--cinema-ink)] placeholder:text-[var(--cinema-ink-faint)] focus-visible:transform-none [&::-webkit-search-cancel-button]:appearance-none"
                     />
                     {typed && (
                         <button
                             type="button"
-                            onClick={() => setTyped('')}
+                            // Tombol ini hilang begitu kolom kosong. Fokus
+                            // dikembalikan ke kolom, bukan jatuh ke <body>.
+                            onClick={() => {
+                                setTyped('');
+                                inputRef.current?.focus();
+                            }}
                             aria-label="Kosongkan pencarian"
                             className="cinema-focus absolute top-1/2 right-2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-[var(--cinema-ink-faint)] transition hover:bg-white/5 hover:text-[var(--cinema-ink)]"
                         >
@@ -187,7 +226,10 @@ export default function Search({ query, results }: SearchProps) {
                                 cocok
                             </p>
 
-                            <ul className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+                            {/* Di TV (sekitar 960px) sm:grid-cols-3 membuat
+                                kartu setinggi satu layar penuh dan bagian
+                                atasnya tertutup bilah navigasi. */}
+                            <ul className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 tv:grid-cols-6 tv:gap-x-4">
                                 {items.map((movie, index) => (
                                     <li key={`${movie.id}-${index}`}>
                                         <MovieCard

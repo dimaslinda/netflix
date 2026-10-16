@@ -89,6 +89,9 @@ export default function MovieCard({
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
             aria-label={`Buka ${title}`}
+            // Penanda kartu untuk memulihkan fokus remote sesudah kembali dari
+            // pemutar atau halaman rincian. Lihat lib/tv/return-focus.ts.
+            data-tv-id={`${movie.media_type ?? 'movie'}-${movie.id}`}
             className="cinema-focus group/card relative block w-full cursor-pointer text-left"
         >
             <div
@@ -103,9 +106,11 @@ export default function MovieCard({
                 {imageUrl && !hasImageFailed ? (
                     <>
                         {/* Rangka penahan agar baris tidak berkedut saat gambar
-                            masuk satu per satu. */}
+                            masuk satu per satu. Di TV denyutnya dimatikan:
+                            puluhan animasi serentak membebani GPU perangkat TV
+                            dan membuat geser remote tersendat. */}
                         {!isImageLoaded && (
-                            <div className="absolute inset-0 animate-pulse bg-[var(--cinema-overlay)]" />
+                            <div className="absolute inset-0 animate-pulse bg-[var(--cinema-overlay)] tv:animate-none" />
                         )}
                         <img
                             src={imageUrl}
@@ -125,10 +130,14 @@ export default function MovieCard({
                     </div>
                 )}
 
+                {/* Di TV angka dibaca dari jarak tiga meter, jadi diperbesar.
+                    Blur latar per kartu dilepas karena tiap lencana menjadi
+                    lapisan komposit sendiri; latar hitam 75% sudah cukup
+                    menjaga kontras. */}
                 {rating && (
-                    <span className="absolute top-2 left-2 flex items-center gap-1 rounded bg-black/75 px-1.5 py-0.5 text-[10px] font-bold text-[var(--cinema-ink)] backdrop-blur-sm">
+                    <span className="absolute top-2 left-2 flex items-center gap-1 rounded bg-black/75 px-1.5 py-0.5 text-[10px] font-bold text-[var(--cinema-ink)] backdrop-blur-sm tv:text-sm tv:backdrop-blur-none">
                         <Star
-                            className="h-2.5 w-2.5 fill-[var(--cinema-accent)] text-[var(--cinema-accent)]"
+                            className="h-2.5 w-2.5 fill-[var(--cinema-accent)] text-[var(--cinema-accent)] tv:h-3.5 tv:w-3.5"
                             aria-hidden="true"
                         />
                         {rating}
@@ -139,7 +148,7 @@ export default function MovieCard({
                 {/* Judul muncul di atas seni kunci saat disentuh tetikus atau
                     difokus remote, jadi baris tetap rapat tanpa mengorbankan
                     keterbacaan. */}
-                <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 to-transparent p-2.5 pt-8 text-[12px] leading-tight font-semibold text-[var(--cinema-ink)] opacity-0 transition-opacity duration-200 group-hover/card:opacity-100 group-focus-visible/card:opacity-100">
+                <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 to-transparent p-2.5 pt-8 text-[12px] leading-tight font-semibold text-[var(--cinema-ink)] opacity-0 transition-opacity duration-200 group-hover/card:opacity-100 group-focus-visible/card:opacity-100 tv:text-base">
                     {title}
                 </span>
             </div>

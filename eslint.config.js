@@ -57,6 +57,20 @@ export default [
         files: ['**/*.{ts,tsx}'],
     },
     {
+        // Skrip uji emulator di CI berjalan di Node (CommonJS), bukan di
+        // peramban.
+        files: ['ci/**/*.cjs'],
+        languageOptions: {
+            sourceType: 'commonjs',
+            globals: {
+                ...globals.node,
+            },
+        },
+        rules: {
+            '@typescript-eslint/no-require-imports': 'off',
+        },
+    },
+    {
         ignores: ['vendor', 'node_modules', 'public', 'bootstrap/ssr', 'tailwind.config.js'],
     },
     prettier, // Turn off all rules that might conflict with Prettier

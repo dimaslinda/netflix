@@ -22,6 +22,11 @@ import { isTvMode } from './tv-mode';
  * Atribut yang dibaca:
  * - `data-tv-skip`: elemen ini dan seluruh isinya tidak pernah dituju.
  * - `data-tv-autofocus`: tujuan pertama saat halaman atau lingkup dibuka.
+ * - `data-tv-row`: wadah satu baris (rel film, deret chip). Kiri/kanan
+ *   berhenti di ujungnya walaupun barisnya muat di layar.
+ * - `data-tv-fixed`: bilah tetap di atas layar. Atas/bawah hanya menujunya
+ *   bila tidak ada tujuan lain, karena bilah itu menimpa isi yang digulir
+ *   di bawahnya dan secara geometris selalu tampak "paling dekat".
  */
 export type TvDirection = 'up' | 'down' | 'left' | 'right';
 
@@ -71,7 +76,47 @@ const RAIL_OVERFLOW_THRESHOLD = 24;
 /** Porsi tinggi wadah yang digeser saat panah tidak menemukan tujuan. */
 const FALLBACK_SCROLL_RATIO = 0.4;
 
+/** Sama dengan scroll-padding-top mode TV di app.css (tinggi bilah atas). */
+const FIXED_HEADER_ROOM = 80;
+
+/**
+ * Jarak minimum antarlangkah saat panah ditahan. Remote mengirim ulang tombol
+ * sekitar 20 kali per detik; tanpa batas ini fokus melompati belasan baris
+ * dalam satu tahanan, dan di CPU TV yang lambat antrean tombol terus berjalan
+ * sampai dua detik setelah tombol dilepas.
+ */
+const REPEAT_INTERVAL_MS = 120;
+
+/** Tombol ulang yang sudah menunggu selama ini di antrean dibuang. */
+const STALE_REPEAT_MS = 100;
+
 const scopes: HTMLElement[] = [];
+
+/**
+ * Elemen isi terakhir yang difokus di luar bilah tetap. Bawah dari bilah atas
+ * kembali ke sini, jadi Atas lalu Bawah selalu bisa dibalik.
+ */
+let lastContentFocus: HTMLElement | null = null;
+
+let lastMoveAt = 0;
+
+/**
+ * Langkah terakhir. Menekan arah sebaliknya kembali ke elemen asal, jadi
+ * Bawah lalu Atas selalu bisa dibalik walaupun perhitungan jarak dari elemen
+ * tujuan menunjuk ke tempat lain (misalnya dari tombol halaman ke kartu).
+ */
+let lastStep: {
+    from: HTMLElement;
+    to: HTMLElement;
+    direction: TvDirection;
+} | null = null;
+
+const OPPOSITE: Record<TvDirection, TvDirection> = {
+    up: 'down',
+    down: 'up',
+    left: 'right',
+    right: 'left',
+};
 
 /**
  * Membatasi navigasi ke dalam satu elemen (modal, laci, menu). Mengembalikan
@@ -251,13 +296,29 @@ function scoreCandidate(
     // Kiri/kanan diutamakan tetap di baris yang sama. Tanpa batas ini, kartu
     // tersembunyi di ujung rel lain (yang posisinya di luar layar kanan)
     // terpilih saat baris sekarang sudah habis.
-    if (sameRowOnly && horizontal && orthogonalGap > origin.height * 0.5) {
+    // "Sebaris" berarti kotaknya benar-benar bertumpuk secara tegak, dengan
+    // sedikit kelonggaran. Ambang setengah tinggi yang dulu dipakai membuat
+    // Kanan dari tombol Kembali di pemutar turun ke baris server di bawahnya,
+    // bukan ke tombol Episode di baris yang sama.
+    if (
+        sameRowOnly &&
+        horizontal &&
+        orthogonalGap > Math.min(8, origin.height * 0.25)
+    ) {
         return null;
     }
 
+    // Dari elemen yang jauh lebih lebar dari tujuannya (kolom pencarian di atas
+    // kisi poster), kelurusan diukur dari tepi kiri, bukan dari tengah: Bawah
+    // dari kolom pencarian mendarat di hasil pertama, bukan di poster keempat
+    // yang kebetulan berada di bawah titik tengahnya.
+    const alignByStart = !horizontal && origin.width > target.width * 2;
+
     const centerOffset = horizontal
         ? Math.abs(targetCenterY - originCenterY)
-        : Math.abs(targetCenterX - originCenterX);
+        : alignByStart
+          ? Math.max(0, target.left - origin.left)
+          : Math.abs(targetCenterX - originCenterX);
 
     return primary + orthogonalGap * 3 + centerOffset * 0.25;
 }
@@ -299,6 +360,10 @@ function findBest(
 
 /** Berada di dalam rel yang menggulir mendatar (baris film, deret chip). */
 function isInHorizontalRail(element: HTMLElement): boolean {
+    if (element.closest('[data-tv-row]')) {
+        return true;
+    }
+
     for (
         let node: HTMLElement | null = element.parentElement;
         node && node !== document.body;
@@ -321,26 +386,153 @@ function isInHorizontalRail(element: HTMLElement): boolean {
     return false;
 }
 
+function isInFixedBar(element: Element): boolean {
+    return element.closest('[data-tv-fixed]') !== null;
+}
+
+/** Terlihat utuh di jendela, bukan hanya tersisa beberapa piksel. */
+function isUsable(element: HTMLElement): boolean {
+    return element.isConnected && isInViewport(element);
+}
+
+/** Deret pilihan (baris, kelompok tombol) tempat sebuah elemen berada. */
+function selectionGroup(element: HTMLElement): HTMLElement | null {
+    return element.closest<HTMLElement>('[data-tv-row], [role="group"]');
+}
+
+function isSelected(element: HTMLElement): boolean {
+    return (
+        element.getAttribute('aria-pressed') === 'true' ||
+        (element.hasAttribute('aria-current') &&
+            element.getAttribute('aria-current') !== 'false')
+    );
+}
+
 function findNext(
     from: HTMLElement,
     direction: TvDirection,
     candidates: HTMLElement[],
+    scope: HTMLElement | Document,
 ): HTMLElement | null {
+    if (
+        lastStep &&
+        lastStep.to === from &&
+        lastStep.direction === OPPOSITE[direction] &&
+        candidates.includes(lastStep.from) &&
+        isUsable(lastStep.from)
+    ) {
+        return lastStep.from;
+    }
+
+    const next = findGeometric(from, direction, candidates, scope);
+
+    // Masuk ke deret pilihan dari luar (daftar musim, chip studio) mendarat di
+    // item yang sedang aktif, bukan di item yang kebetulan paling dekat.
+    const group = next ? selectionGroup(next) : null;
+
+    if (next && group && !group.contains(from)) {
+        const selected = candidates.find(
+            (candidate) =>
+                group.contains(candidate) &&
+                isSelected(candidate) &&
+                isUsable(candidate),
+        );
+
+        if (selected) {
+            return selected;
+        }
+    }
+
+    return next;
+}
+
+function findGeometric(
+    from: HTMLElement,
+    direction: TvDirection,
+    candidates: HTMLElement[],
+    scope: HTMLElement | Document,
+): HTMLElement | null {
+    const fromFixedBar = isInFixedBar(from);
+    const contentOnly = fromFixedBar
+        ? candidates
+        : candidates.filter((candidate) => !isInFixedBar(candidate));
+
+    if (direction === 'up' || direction === 'down') {
+        // Turun dari bilah atas: kembali ke tempat terakhir di isi halaman,
+        // lalu ke tujuan pertama halaman, baru perhitungan jarak. Tanpa ini
+        // tombol di kanan bilah atas jatuh ke chip paling kanan dan
+        // melewatkan tombol Putar di kiri.
+        if (fromFixedBar && direction === 'down' && scope === document) {
+            const remembered =
+                lastContentFocus &&
+                isUsable(lastContentFocus) &&
+                candidates.includes(lastContentFocus)
+                    ? lastContentFocus
+                    : candidates.find(
+                          (candidate) =>
+                              candidate.hasAttribute('data-tv-autofocus') &&
+                              candidate.closest('main') &&
+                              isUsable(candidate),
+                      );
+
+            if (remembered) {
+                return remembered;
+            }
+
+            return findBest(
+                from,
+                direction,
+                candidates.filter((candidate) => !isInFixedBar(candidate)),
+                true,
+            );
+        }
+
+        return (
+            findBest(from, direction, contentOnly, true) ??
+            findBest(from, direction, candidates, true)
+        );
+    }
+
+    // Kiri/kanan di bilah atas tetap di bilah atas. Dulu ujung bilah
+    // melompat ke kartu di bawahnya dan menggulir halaman.
+    if (fromFixedBar) {
+        return findBest(
+            from,
+            direction,
+            candidates.filter((candidate) => isInFixedBar(candidate)),
+            true,
+        );
+    }
+
     const sameRow = findBest(from, direction, candidates, true);
 
-    if (sameRow || direction === 'up' || direction === 'down') {
+    if (sameRow) {
         return sameRow;
     }
 
     // Tata letak berkolom (daftar kanal di samping pemutar) butuh kiri/kanan
-    // yang boleh pindah baris. Dibatasi ke elemen yang tampak di layar, dan
-    // tidak dari dalam rel: di ujung baris film, remote berhenti, bukan
-    // melompat ke baris lain.
+    // yang boleh pindah baris. Dibatasi ke elemen yang tampak di layar, tidak
+    // ke bilah atas, dan tidak dari dalam rel: di ujung baris film, remote
+    // berhenti, bukan melompat ke baris lain.
     if (isInHorizontalRail(from)) {
         return null;
     }
 
-    return findBest(from, direction, candidates.filter(isInViewport), false);
+    return findBest(from, direction, contentOnly.filter(isInViewport), false);
+}
+
+/** Berada lebih dari setengah layar di luar jendela. */
+function isFarOffscreen(element: HTMLElement): boolean {
+    const rect = element.getBoundingClientRect();
+    const marginY = window.innerHeight * 0.5;
+    const marginX = window.innerWidth * 0.5;
+
+    return (
+        rect.bottom < -marginY ||
+        rect.top > window.innerHeight + marginY ||
+        rect.right < -marginX ||
+        rect.left > window.innerWidth + marginX
+    );
 }
 
 function isInViewport(element: HTMLElement): boolean {
@@ -377,10 +569,30 @@ function focusElement(
         return;
     }
 
+    // Di rel, geser kanan/kiri menaruh kartu terfokus di slot pertama, jadi
+    // judul berikutnya yang tampak, bukan judul yang sudah dilewati. Peramban
+    // menahan sendiri di ujung baris.
+    const horizontalInRail =
+        (direction === 'left' || direction === 'right') &&
+        isInHorizontalRail(element);
+
     element.scrollIntoView({
         block: vertical ? 'center' : 'nearest',
-        inline: 'nearest',
+        inline: horizontalInRail ? 'start' : 'nearest',
         behavior,
+    });
+}
+
+/**
+ * Memfokuskan elemen tertentu dengan aturan gulir yang sama seperti navigasi
+ * panah. Dipakai untuk memulihkan posisi setelah kembali dari halaman lain.
+ */
+export function focusTarget(element: HTMLElement): void {
+    element.focus({ preventScroll: true });
+    element.scrollIntoView({
+        block: 'center',
+        inline: 'nearest',
+        behavior: 'instant',
     });
 }
 
@@ -410,15 +622,31 @@ function scrollableAncestor(element: Element): Element {
  */
 export function focusInitial(scope: HTMLElement | Document = activeScope()) {
     const candidates = getFocusableElements(scope);
+    const isAutofocus = (element: HTMLElement) =>
+        element.hasAttribute('data-tv-autofocus');
+
+    // Di tingkat halaman, tujuan bertanda hanya dipakai bila tampak: setelah
+    // kembali lewat riwayat, peramban memulihkan posisi gulir dan tombol
+    // Putar di panel pembuka sudah jauh di atas layar. Di laci dan modal
+    // aturan ini tidak berlaku, karena laci masih bergeser masuk saat fokus
+    // dipasang dan episode aktif boleh berada di bawah daftar.
     const target =
-        candidates.find((element) =>
-            element.hasAttribute('data-tv-autofocus'),
-        ) ??
-        candidates.find(
-            (element) => element.closest('main') && isInViewport(element),
-        ) ??
-        candidates.find(isInViewport) ??
-        candidates[0];
+        scope === document
+            ? (candidates.find(
+                  (element) => isAutofocus(element) && isInViewport(element),
+              ) ??
+              candidates.find(
+                  (element) => element.closest('main') && isInViewport(element),
+              ) ??
+              candidates.find(isInViewport) ??
+              candidates.find(isAutofocus) ??
+              candidates[0])
+            : (candidates.find(isAutofocus) ??
+              candidates.find(
+                  (element) => element.closest('main') && isInViewport(element),
+              ) ??
+              candidates.find(isInViewport) ??
+              candidates[0]);
 
     if (!target) {
         return false;
@@ -480,15 +708,28 @@ export function moveFocus(direction: TvDirection, instant = false): void {
     const scope = activeScope();
     const from = currentFocus();
 
-    if (!from || !scope.contains(from)) {
+    // Fokus yang sudah tergulir jauh keluar layar (misalnya setelah peramban
+    // memulihkan posisi gulir) tidak dipakai sebagai titik awal: pemirsa tidak
+    // melihatnya, jadi langkah pertama memilih tujuan yang tampak. Tujuan
+    // langkah panah sebelumnya tidak termasuk: saat tombol ditekan cepat
+    // berturut-turut, fokus memang mendahului gulir halus halaman.
+    if (
+        !from ||
+        !scope.contains(from) ||
+        (scope === document &&
+            from !== lastStep?.to &&
+            !isInFixedBar(from) &&
+            isFarOffscreen(from))
+    ) {
         focusInitial(scope);
 
         return;
     }
 
-    const next = findNext(from, direction, getFocusableElements(scope));
+    const next = findNext(from, direction, getFocusableElements(scope), scope);
 
     if (next) {
+        lastStep = { from, to: next, direction };
         focusElement(next, direction, instant);
 
         return;
@@ -506,13 +747,31 @@ export function moveFocus(direction: TvDirection, instant = false): void {
 
     if (direction === 'up' || direction === 'down') {
         const container = scrollableAncestor(from);
-        container.scrollBy({
-            top:
-                (direction === 'down' ? 1 : -1) *
-                container.clientHeight *
-                FALLBACK_SCROLL_RATIO,
-            behavior: instant ? 'instant' : 'smooth',
-        });
+        let step = container.clientHeight * FALLBACK_SCROLL_RATIO;
+
+        // Di gulir halaman, langkah turun dibatasi agar elemen terfokus tidak
+        // masuk ke bawah bilah atas yang tetap. Wadah dalam (laci, modal)
+        // tidak punya bilah seperti itu.
+        if (
+            direction === 'down' &&
+            container ===
+                (document.scrollingElement ?? document.documentElement)
+        ) {
+            step = Math.max(
+                0,
+                Math.min(
+                    step,
+                    from.getBoundingClientRect().top - FIXED_HEADER_ROOM,
+                ),
+            );
+        }
+
+        if (step > 0) {
+            container.scrollBy({
+                top: (direction === 'down' ? 1 : -1) * step,
+                behavior: instant ? 'instant' : 'smooth',
+            });
+        }
     }
 }
 
@@ -548,7 +807,32 @@ function handleKeyDown(event: KeyboardEvent): void {
     }
 
     event.preventDefault();
+
+    if (event.repeat) {
+        const now = performance.now();
+
+        if (
+            now - event.timeStamp > STALE_REPEAT_MS ||
+            now - lastMoveAt < REPEAT_INTERVAL_MS
+        ) {
+            return;
+        }
+    }
+
+    lastMoveAt = performance.now();
     moveFocus(direction, event.repeat);
+}
+
+function rememberContentFocus(event: FocusEvent): void {
+    const target = event.target;
+
+    if (
+        target instanceof HTMLElement &&
+        !isInFixedBar(target) &&
+        activeScope() === document
+    ) {
+        lastContentFocus = target;
+    }
 }
 
 let installed = false;
@@ -564,4 +848,5 @@ export function installSpatialNavigation(): void {
 
     installed = true;
     window.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('focusin', rememberContentFocus);
 }

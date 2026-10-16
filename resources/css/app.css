@@ -371,9 +371,11 @@
     animation: info-slide-up 0.3s ease-out forwards;
 }
 
-/* Custom focus styles */
-button:focus-visible,
-a:focus-visible {
+/* Custom focus styles. Aturan ini tidak berlapis, jadi mengalahkan semua
+   aturan @layer. Di mode TV ia dikecualikan, supaya cincin fokus TV yang
+   tebal (lihat blok Remote TV) berlaku sama untuk tombol, tautan, dan kartu. */
+:root:not(.tv-mode) button:focus-visible,
+:root:not(.tv-mode) a:focus-visible {
     outline: 2px solid white;
     outline-offset: 2px;
 }
@@ -381,6 +383,30 @@ a:focus-visible {
 /* Smooth scrolling */
 html {
     scroll-behavior: smooth;
+}
+
+/* Di TV, navigasi spasial mengatur sendiri kapan menggulir halus. Gulir halus
+   bawaan membuat Inertia lambat kembali ke puncak halaman sesudah pindah
+   halaman, dan fokus awal lalu jatuh ke baris paling bawah halaman baru. */
+html.tv-mode {
+    scroll-behavior: auto;
+}
+
+/* Penjaga performa TV. Ratusan lencana ber-backdrop-blur dan kerangka gambar
+   yang berdenyut membuat setiap tekanan panah baru menggeser layar 1,2 sampai
+   1,5 detik kemudian di CPU TV. Sengaja tidak berlapis agar mengalahkan
+   utilitas Tailwind. */
+.tv-mode .animate-pulse,
+.tv-mode .animate-ping,
+.tv-mode .skeleton-pulse,
+.tv-mode .netflix-loading {
+    animation: none;
+}
+
+.tv-mode [class*='backdrop-blur'],
+.tv-mode .modal-backdrop {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
 }
 
 /* Modal backdrop blur */

@@ -1,0 +1,331 @@
+name: android-tv-e2e
+
+# Bukti otomatis bahwa kursor remote native (TvRemotePlugin + RemoteCursor)
+# bekerja di emulator Android TV. APK dan halaman web dibangun dari commit
+# yang sama: APK uji memuat Laravel yang berjalan di runner ini
+# (http://10.0.2.2:8000 dilihat dari dalam emulator), bukan situs produksi.
+# Karena itu APK uji tidak diunggah; APK untuk TV tetap dari android-apk.yml.
+#
+# Hasil terbit sebagai anotasi, yang untuk repo publik terbaca tanpa login:
+#   curl -s https://api.github.com/repos/dimaslinda/netflix/actions/runs/<run_id>/jobs
+#   curl -s <jobs[0].check_run_url>/annotations
+# Tangkapan layar, logcat, dan results.json ada di artifact (butuh login).
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_level:
+        description: 'API level image emulator'
+        default: '34'
+      target:
+        description: 'Jenis image emulator'
+        type: choice
+        default: android-tv
+        options:
+          - android-tv
+          - google-tv
+          - default
+          - google_apis
+      arch:
+        description: 'Arsitektur image (image TV API 30-34 hanya x86; x86_64 baru ada di API 36)'
+        default: 'x86'
+      profile:
+        description: 'Profil perangkat AVD (kosongkan untuk bawaan image)'
+        default: 'tv_1080p'
+      probe_real_player:
+        description: 'Juga amati pemutar asli vidlink.pro (butuh internet, tidak pernah menggagalkan job)'
+        type: boolean
+        default: false
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'android/**'
+      - 'capacitor.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'resources/js/app.tsx'
+      - 'resources/js/lib/tv/**'
+      - 'resources/js/hooks/use-remote-player-control.ts'
+      - 'resources/js/hooks/use-back-handler.ts'
+      - 'resources/js/hooks/use-tv-mode.ts'
+      - 'resources/js/pages/Watch.tsx'
+      - 'ci/android-e2e/**'
+      - '.github/workflows/android-tv-e2e.yml'
+
+concurrency:
+  group: android-tv-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cursor:
+    # Dipatok ke 24.04: label ubuntu-latest pindah ke Ubuntu 26 mulai
+    # 19 Okt 2026, dan emulator+KVM di image baru itu belum terbukti.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+
+    env:
+      E2E_OUT: ${{ github.workspace }}/e2e-out
+      E2E_APP_ORIGIN: http://10.0.2.2:8000
+      E2E_FIXTURE_URL: http://10.0.2.2:8001/player.html
+      E2E_FIXTURE_LOG: ${{ github.workspace }}/e2e-out/fixture-server.log
+      E2E_PACKAGE: com.netflix.app
+      E2E_APK: android/app/build/outputs/apk/debug/app-debug.apk
+      E2E_PROBE_REAL_PLAYER: ${{ inputs.probe_real_player && 'true' || 'false' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Push tidak membawa inputs, jadi setiap nilai jatuh ke bawaannya.
+      - name: Tentukan skenario
+        env:
+          IN_API: ${{ inputs.api_level }}
+          IN_TARGET: ${{ inputs.target }}
+          IN_ARCH: ${{ inputs.arch }}
+          IN_PROFILE: ${{ inputs.profile }}
+        run: |
+          mkdir -p "$E2E_OUT"
+          target="${IN_TARGET:-android-tv}"
+          profile="${IN_PROFILE:-tv_1080p}"
+          case "$target" in
+            android-tv|google-tv)
+              expect_tv=true
+              start_path=/watch/movie/550
+              ;;
+            *)
+              # Image HP tidak melapor sebagai televisi, jadi mode TV dipaksa
+              # lewat ?tv=1 dan deteksi television tidak ikut diuji.
+              expect_tv=false
+              start_path='/watch/movie/550?tv=1'
+              [ "$profile" = tv_1080p ] && profile=
+              echo "::warning title=Bukan image TV::mode TV dipaksa lewat ?tv=1, deteksi television tidak diuji"
+              ;;
+          esac
+          {
+            echo "EMU_API_LEVEL=${IN_API:-34}"
+            echo "EMU_TARGET=$target"
+            echo "EMU_ARCH=${IN_ARCH:-x86}"
+            echo "EMU_PROFILE=$profile"
+            echo "E2E_EXPECT_TV=$expect_tv"
+            echo "E2E_START_PATH=$start_path"
+          } >> "$GITHUB_ENV"
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      # CI=true mematikan plugin Wayfinder di vite.config.ts; berkas rute
+      # hasilnya sudah ikut di-commit. Aset dibangun ulang supaya JS yang
+      # disajikan sama persis dengan sumber di commit ini.
+      - name: Build aset web
+        run: npm run build
+
+      - name: Siapkan Laravel
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        run: |
+          cp .env.example .env
+          # Dotenv Laravel memakai definisi pertama, jadi nilai diganti di
+          # tempat, bukan ditambahkan di akhir berkas.
+          set_env() {
+            local value
+            value=$(printf '%s' "$2" | sed -e 's/[&#\\]/\\&/g')
+            if grep -qE "^$1=" .env; then
+              sed -i -E "s#^$1=.*#$1=${value}#" .env
+            else
+              printf '%s=%s\n' "$1" "$2" >> .env
+            fi
+          }
+          set_env APP_URL "$E2E_APP_ORIGIN"
+          set_env APP_ENV local
+          set_env SESSION_DRIVER file
+          set_env CACHE_STORE file
+          set_env QUEUE_CONNECTION sync
+          set_env LOG_CHANNEL single
+          if [ -n "${TMDB_API_KEY:-}" ]; then
+            set_env TMDB_API_KEY "$TMDB_API_KEY"
+          fi
+          touch database/database.sqlite
+          php artisan key:generate --force
+          php artisan migrate --force --no-interaction
+
+      # Emulator menjangkau runner lewat 10.0.2.2. Port 8000 adalah aplikasi,
+      # port 8001 fixture pemutar: asal berbeda, jadi halaman tonton tidak
+      # bisa menyentuh isinya selain lewat input sungguhan.
+      - name: Jalankan server uji
+        run: |
+          PHP_CLI_SERVER_WORKERS=4 nohup php artisan serve --host=0.0.0.0 --port=8000 --no-reload \
+            > "$E2E_OUT/php-serve.log" 2>&1 &
+          nohup python3 -u -m http.server 8001 --bind 0.0.0.0 --directory ci/android-e2e/fixture \
+            > "$E2E_FIXTURE_LOG" 2>&1 &
+
+          for _ in $(seq 1 30); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8000/up && curl -fsS -o /dev/null http://127.0.0.1:8001/player.html; then
+              break
+            fi
+            sleep 1
+          done
+
+          page_code=$(curl -s -o "$E2E_OUT/watch.html" -w '%{http_code}' "http://127.0.0.1:8000${E2E_START_PATH}")
+          asset=$(grep -oE '/build/assets/app-[A-Za-z0-9_-]+\.js' "$E2E_OUT/watch.html" | head -n 1)
+          asset_code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8000${asset:-/build/none.js}")
+          fixture_code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8001/player.html)
+
+          if [ "$page_code" != 200 ] \
+            || ! grep -qE '(&quot;|")component(&quot;|"):(&quot;|")Watch' "$E2E_OUT/watch.html" \
+            || [ "$asset_code" != 200 ] \
+            || [ "$fixture_code" != 200 ]; then
+            echo "::error title=Server uji::halaman tonton $page_code, aset ${asset:-tidak ditemukan} $asset_code, fixture $fixture_code"
+            tail -n 30 "$E2E_OUT/php-serve.log" || true
+            exit 1
+          fi
+          echo "::notice title=Server uji::halaman tonton 200 (komponen Watch), aset $asset 200, fixture 200"
+
+      - name: Capacitor sync ke server uji
+        run: |
+          CAPACITOR_SERVER_URL="$E2E_APP_ORIGIN" npx cap sync android
+          # Aplikasi langsung membuka halaman tonton, seperti pemirsa yang
+          # memilih film. Yang diubah hanya berkas hasil sync, bukan sumbernya.
+          node -e '
+            const fs = require("fs");
+            const file = "android/app/src/main/assets/capacitor.config.json";
+            const config = JSON.parse(fs.readFileSync(file, "utf8"));
+            config.server = { ...config.server, appStartPath: process.env.E2E_START_PATH };
+            fs.writeFileSync(file, JSON.stringify(config, null, 2));
+            if (config.server.url !== process.env.E2E_APP_ORIGIN) {
+              console.log(`::error title=Konfigurasi APK::server.url=${config.server.url}, seharusnya ${process.env.E2E_APP_ORIGIN}`);
+              process.exit(1);
+            }
+          '
+
+      - name: Build APK uji
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          if ! ./gradlew assembleDebug --no-daemon 2>&1 | tee gradle.log; then
+            grep -E "error:|What went wrong|FAILURE|Could not|> " gradle.log \
+              | grep -v "^> Task" | head -n 10 \
+              | while IFS= read -r line; do echo "::error::$line"; done
+            exit 1
+          fi
+
+      # Bukti statis sebelum emulator: alamat yang dimuat APK dan kelas native
+      # yang ikut terkompilasi. Sidik sertifikat ditampilkan untuk memastikan
+      # APK ditandatangani kunci debug tetap di android/app/debug.keystore,
+      # sama dengan APK untuk TV, jadi bisa dipasang menimpa satu sama lain.
+      - name: Periksa isi APK
+        run: |
+          unzip -p "$E2E_APK" assets/capacitor.config.json > "$E2E_OUT/apk-capacitor.config.json"
+          url=$(node -p 'require(process.env.E2E_OUT + "/apk-capacitor.config.json").server.url')
+          start=$(node -p 'require(process.env.E2E_OUT + "/apk-capacitor.config.json").server.appStartPath')
+          classes=$(unzip -p "$E2E_APK" 'classes*.dex' \
+            | grep -aoE 'Lcom/netflix/app/(TvRemotePlugin|RemoteCursor);' \
+            | sort -u | sed -E 's#Lcom/netflix/app/(.*);#\1#' | tr '\n' ' ')
+          build_tools=$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -n 1)
+          cert=$("$ANDROID_HOME/build-tools/$build_tools/apksigner" verify --print-certs "$E2E_APK" \
+            | grep -m 1 'SHA-256' | awk '{print $NF}')
+          case "$classes" in
+            *RemoteCursor*TvRemotePlugin*) ;;
+            *)
+              echo "::error title=Isi APK::kelas TvRemotePlugin/RemoteCursor tidak ada di dex (ditemukan: ${classes:-tidak ada})"
+              exit 1
+              ;;
+          esac
+          echo "::notice title=APK uji::server.url=$url appStartPath=$start; kelas: $classes; sertifikat SHA-256 ${cert:0:16}"
+
+      # Playwright dipakai tanpa peramban: hanya klien adb dan DevTools-nya.
+      - name: Siapkan alat uji
+        run: |
+          mkdir -p "$RUNNER_TEMP/e2e-tools"
+          cd "$RUNNER_TEMP/e2e-tools"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund playwright-core@1.62.1 pngjs@7.0.0
+          echo "NODE_PATH=$RUNNER_TEMP/e2e-tools/node_modules" >> "$GITHUB_ENV"
+
+      - name: Aktifkan KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Periksa profil AVD
+        if: env.EMU_PROFILE != ''
+        run: |
+          avdmanager="$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager"
+          if [ -x "$avdmanager" ] && ! "$avdmanager" list device -c 2>/dev/null | grep -qx "$EMU_PROFILE"; then
+            echo "::warning title=Profil AVD::$EMU_PROFILE tidak dikenal avdmanager, emulator memakai profil bawaan image"
+            echo "EMU_PROFILE=" >> "$GITHUB_ENV"
+          fi
+
+      - name: Uji kursor di emulator
+        id: emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.EMU_API_LEVEL }}
+          target: ${{ env.EMU_TARGET }}
+          arch: ${{ env.EMU_ARCH }}
+          profile: ${{ env.EMU_PROFILE }}
+          cores: 3
+          # Image TV API 30-34 hanya ada sebagai x86 (ABI 32-bit); RAM tamu dijaga di
+          # bawah 4 GB.
+          ram-size: 3072M
+          disk-size: 6G
+          emulator-boot-timeout: 900
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: bash ci/android-e2e/run-on-emulator.sh
+
+      - name: Kumpulkan log server
+        if: always() && steps.emulator.outcome != 'skipped'
+        run: |
+          cp storage/logs/laravel.log "$E2E_OUT/laravel.log" 2>/dev/null || true
+          cp android/gradle.log "$E2E_OUT/gradle.log" 2>/dev/null || true
+
+      # Dua langkah terpisah karena GitHub membatasi 10 anotasi per tingkat
+      # per langkah.
+      - name: Laporkan hasil uji
+        if: always() && steps.emulator.outcome != 'skipped'
+        run: node ci/android-e2e/report.cjs assertions "$E2E_OUT"
+
+      - name: Laporkan log perangkat
+        if: always() && steps.emulator.outcome != 'skipped'
+        run: node ci/android-e2e/report.cjs logs "$E2E_OUT"
+
+      - name: Unggah bukti
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-tv-e2e-${{ github.sha }}-api${{ env.EMU_API_LEVEL }}-${{ env.EMU_TARGET }}
+          path: e2e-out/
+          retention-days: 14
+          if-no-files-found: warn

@@ -68,6 +68,15 @@ const BRAND_PROVIDERS: BrandProvider[] = [
     },
 ];
 
+/**
+ * Tampilan chip aktif di TV. Di TV fokus remote ditandai chip putih, jadi chip
+ * aktif tidak boleh putih atau berpendar seperti chip terfokus; cukup bingkai
+ * tegas dan ikon centang. Isian merek juga dilepas karena merah Netflix sama
+ * dengan warna cincin fokus.
+ */
+const TV_ACTIVE_CLASS =
+    'tv:border-2 tv:border-white/80 tv:bg-zinc-900/90 tv:bg-none tv:text-white tv:shadow-none tv:ring-0';
+
 interface BrandFilterBarProps {
     activeProvider?: string;
     className?: string;
@@ -98,7 +107,7 @@ export default function BrandFilterBar({
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <Sparkles className="h-4 w-4 text-[#E50914]" aria-hidden="true" />
-                        <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                        <span className="text-xs font-bold uppercase tracking-wider text-zinc-400 tv:text-sm">
                             Pilih Studio & Platform
                         </span>
                     </div>
@@ -114,7 +123,13 @@ export default function BrandFilterBar({
                     )}
                 </div>
 
-                <div className="no-scrollbar flex items-center gap-2.5 overflow-x-auto pb-1">
+                {/* Ruang dalam py dan -mx/px memberi tempat bagi pembesaran
+                    chip terfokus beserta cincinnya; wadah overflow-x-auto
+                    memotong apa pun yang keluar dari kotaknya. */}
+                <div
+                    data-tv-row
+                    className="no-scrollbar flex items-center gap-2.5 overflow-x-auto pb-1 tv:-mx-3 tv:px-3 tv:py-2.5"
+                >
                     {BRAND_PROVIDERS.map((provider) => {
                         const isActive = currentKey === provider.key;
 
@@ -127,8 +142,15 @@ export default function BrandFilterBar({
                                 className={cn(
                                     'cinema-focus group relative flex min-h-[44px] shrink-0 items-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition-all duration-200 active:scale-95 md:text-sm',
                                     isActive
-                                        ? cn(provider.activeClass, provider.glowClass)
+                                        ? cn(
+                                              provider.activeClass,
+                                              provider.glowClass,
+                                              TV_ACTIVE_CLASS,
+                                          )
                                         : 'border border-white/10 bg-zinc-900/90 text-zinc-300 hover:border-white/30 hover:bg-zinc-800 hover:text-white',
+                                    // Satu-satunya chip putih di TV adalah
+                                    // chip yang sedang difokus remote.
+                                    'tv:focus-visible:bg-white tv:focus-visible:text-black',
                                 )}
                             >
                                 {isActive && (
@@ -143,10 +165,13 @@ export default function BrandFilterBar({
                                 {provider.badgeText && (
                                     <span
                                         className={cn(
-                                            'rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider',
+                                            'rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider tv:text-xs',
                                             isActive
                                                 ? 'bg-white/20 text-white'
                                                 : 'bg-blue-500/20 text-blue-300',
+                                            // Di atas chip terfokus yang putih,
+                                            // warna pucat di atas tak terbaca.
+                                            'tv:group-focus-visible:bg-blue-600 tv:group-focus-visible:text-white',
                                         )}
                                     >
                                         {provider.badgeText}

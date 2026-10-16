@@ -125,7 +125,30 @@ export default function MovieDetail({ type, id }: MovieDetailProps) {
         ? `https://image.tmdb.org/t/p/original${artPath}`
         : null;
 
-    const trailerEmbed = videos?.best?.embed_url ?? null;
+    // Di TV cuplikan tidak diputar, cukup gambar latar. Banyak cuplikan
+    // diblokir per wilayah sehingga panel hanya menampilkan pesan galat
+    // YouTube, dan pemutar YouTube terlalu berat untuk chip TV.
+    const trailerEmbed = isTv ? null : (videos?.best?.embed_url ?? null);
+
+    // Kembali menuju halaman terakhir sebelum rincian, yang dicatat app.tsx.
+    // history.back() dulu memantul di antara rincian dan pemutar tanpa pernah
+    // sampai ke beranda. replace menjaga riwayat tidak menumpuk rincian.
+    const goBack = () => {
+        let parent = '/';
+
+        try {
+            parent = sessionStorage.getItem('tv:title-parent') || '/';
+        } catch {
+            // Penyimpanan diblokir: kembali ke beranda.
+        }
+
+        // Hanya alamat di aplikasi ini. Nilai lain jatuh ke beranda.
+        if (!parent.startsWith('/') || parent.startsWith('//')) {
+            parent = '/';
+        }
+
+        router.visit(parent, { replace: true });
+    };
 
     const play = () => {
         const query = new URLSearchParams();
@@ -178,6 +201,11 @@ export default function MovieDetail({ type, id }: MovieDetailProps) {
     }
 
     const genres = details.genres ?? [];
+    // Musim 0 (Spesial) dibuang, sama seperti di halaman tonton. Tanpa ini
+    // daftar dibuka dengan "Musim 0" yang tidak bisa dipilih di pemutar.
+    const seasonList = (details.seasons ?? []).filter(
+        (entry) => entry.season_number > 0,
+    );
 
     return (
         <PageShell title={title}>
@@ -188,9 +216,6 @@ export default function MovieDetail({ type, id }: MovieDetailProps) {
                         title={`Cuplikan ${title}`}
                         allow="autoplay; encrypted-media; fullscreen"
                         allowFullScreen
-                        // Di TV iframe YouTube menelan semua tombol remote
-                        // begitu difokus, termasuk panah untuk keluar.
-                        tabIndex={isTv ? -1 : undefined}
                         className="h-full w-full"
                     />
                 ) : artUrl ? (
@@ -205,7 +230,7 @@ export default function MovieDetail({ type, id }: MovieDetailProps) {
 
                 <button
                     type="button"
-                    onClick={() => window.history.back()}
+                    onClick={goBack}
                     aria-label="Kembali"
                     className="cinema-focus absolute top-20 left-4 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-[var(--cinema-ink)] transition hover:bg-black/80 md:left-12"
                 >
@@ -266,9 +291,20 @@ export default function MovieDetail({ type, id }: MovieDetailProps) {
                     {type === 'tv' && (
                         <section>
                             <div className="flex flex-wrap items-center justify-between gap-3">
-                                <h2 className="text-lg font-bold">Episode</h2>
+                                <h2 className="text-lg font-bold">
+                                    Episode
+                                    <span className="ml-2 hidden text-sm font-normal text-[var(--cinema-ink-faint)] tv:inline">
+                                        Musim {season}
+                                    </span>
+                                </h2>
 
-                                <label className="flex items-center gap-2 text-sm">
+                                {/*
+                                    Di TV pilihan musim ada di daftar samping.
+                                    Pemilih bawaan Android membuka dialog sistem
+                                    yang tidak bergaya dan sulit dipakai dengan
+                                    remote.
+                                */}
+                                <label className="flex items-center gap-2 text-sm tv:hidden">
                                     <span className="text-[var(--cinema-ink-faint)]">
                                         Musim
                                     </span>
@@ -281,7 +317,7 @@ export default function MovieDetail({ type, id }: MovieDetailProps) {
                                         }
                                         className="cinema-focus min-h-11 rounded bg-[var(--cinema-raised)] px-3 text-sm font-semibold text-[var(--cinema-ink)]"
                                     >
-                                        {(details.seasons ?? []).map(
+                                        {seasonList.map(
                                             (entry) => (
                                                 <option
                                                     key={entry.id}
@@ -354,7 +390,14 @@ export default function MovieDetail({ type, id }: MovieDetailProps) {
                     )}
                 </div>
 
-                <aside className="space-y-8">
+                {/*
+                    Di TV kolom samping menempel di bawah bilah atas. Remote
+                    yang ditekan ke kanan dari episode mana pun langsung
+                    menemukan daftar musim, bukan melompat ke bilah navigasi.
+                    Daftar yang lebih tinggi dari layar menggulir sendiri, dan
+                    padding menjaga cincin fokus tidak terpotong tepi gulirnya.
+                */}
+                <aside className="space-y-8 tv:sticky tv:top-20 tv:-m-4 tv:max-h-[calc(100vh-6rem)] tv:self-start tv:overflow-y-auto tv:p-4">
                     {genres.length > 0 && (
                         <section>
                             <h2 className="text-[11px] font-bold tracking-widest text-[var(--cinema-ink-faint)] uppercase">
@@ -373,25 +416,46 @@ export default function MovieDetail({ type, id }: MovieDetailProps) {
                         </section>
                     )}
 
-                    {type === 'tv' && (details.seasons?.length ?? 0) > 0 && (
+                    {type === 'tv' && seasonList.length > 0 && (
                         <section>
                             <h2 className="text-[11px] font-bold tracking-widest text-[var(--cinema-ink-faint)] uppercase">
                                 Musim
                             </h2>
-                            <ul className="mt-3 space-y-1.5">
-                                {details.seasons?.map((entry) => (
-                                    <li
-                                        key={entry.id}
-                                        className={cn(
-                                            'flex items-center justify-between rounded bg-[var(--cinema-raised)] px-3 py-2 text-xs',
-                                            entry.season_number === season &&
-                                                'ring-1 ring-[var(--cinema-accent)]/50',
-                                        )}
-                                    >
-                                        <span>Musim {entry.season_number}</span>
-                                        <span className="text-[var(--cinema-ink-faint)]">
-                                            {entry.episode_count} episode
-                                        </span>
+                            {/*
+                                Dulu daftar ini tampak bisa dipilih tetapi tidak
+                                bisa difokus. Sekarang setiap baris tombol yang
+                                mengganti daftar episode.
+                            */}
+                            {/* role=group: remote yang masuk ke daftar ini
+                                mendarat di musim yang sedang tampil. */}
+                            <ul
+                                role="group"
+                                aria-label="Pilih musim"
+                                className="mt-3 space-y-1.5"
+                            >
+                                {seasonList.map((entry) => (
+                                    <li key={entry.id}>
+                                        <button
+                                            type="button"
+                                            aria-pressed={
+                                                entry.season_number === season
+                                            }
+                                            onClick={() =>
+                                                setSeason(entry.season_number)
+                                            }
+                                            className={cn(
+                                                'cinema-focus flex min-h-11 w-full items-center justify-between rounded bg-[var(--cinema-raised)] px-3 py-2 text-left text-xs transition hover:bg-[var(--cinema-overlay)]',
+                                                entry.season_number === season &&
+                                                    'font-semibold ring-1 ring-[var(--cinema-accent)]/50',
+                                            )}
+                                        >
+                                            <span>
+                                                Musim {entry.season_number}
+                                            </span>
+                                            <span className="font-normal text-[var(--cinema-ink-faint)]">
+                                                {entry.episode_count} episode
+                                            </span>
+                                        </button>
                                     </li>
                                 ))}
                             </ul>
@@ -411,7 +475,10 @@ function PageShell({
     children: React.ReactNode;
 }) {
     return (
-        <div className="min-h-screen overflow-x-hidden bg-[var(--cinema-base)] text-[var(--cinema-ink)]">
+        // tv:overflow-x-clip: overflow-x-hidden membuat wadah ini menjadi
+        // wadah gulir, sehingga daftar musim yang sticky di TV ikut tergulir
+        // pergi. clip tetap memotong ke samping tanpa efek itu.
+        <div className="min-h-screen overflow-x-hidden bg-[var(--cinema-base)] text-[var(--cinema-ink)] tv:overflow-x-clip">
             <Head title={title} />
             <Navbar />
             {children}

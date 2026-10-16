@@ -164,7 +164,10 @@ export default function Home(props: HomeProps) {
                             />
                         )}
 
-                        <div className="relative z-10 space-y-10 pt-10 pb-16 md:-mt-20 md:pt-0">
+                        {/* Di TV panel pembuka memakai jarak bawah yang lebih
+                            pendek (pb-12), jadi tumpangannya dikurangi agar
+                            bilah studio tidak menimpa tombol Putar. */}
+                        <div className="relative z-10 space-y-10 pt-10 pb-16 md:-mt-20 md:pt-0 tv:-mt-6">
                             {/* Bilah Filter Studio / Platform Streaming */}
                             <BrandFilterBar activeProvider={props.provider} />
 
@@ -253,7 +256,7 @@ function MyListView({
                     </p>
                 </div>
             ) : (
-                <ul className="mt-8 grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+                <ul className="mt-8 grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 tv:grid-cols-6 tv:gap-x-4">
                     {list.map((movie) => (
                         <li key={movie.id}>
                             <MovieCard

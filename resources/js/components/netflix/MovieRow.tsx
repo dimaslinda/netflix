@@ -1,6 +1,14 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+    type FocusEvent,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
 
+import { useTvMode } from '@/hooks/use-tv-mode';
 import { cn } from '@/lib/utils';
 import { Movie } from '@/types/tmdb';
 
@@ -29,9 +37,13 @@ export default function MovieRow({
     note,
     onHover,
 }: MovieRowProps) {
+    const isTv = useTvMode();
     const railRef = useRef<HTMLDivElement>(null);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(false);
+    // Kunci data-tv-id kartu yang sedang difokus remote di baris ini, atau
+    // null bila fokus berada di luar baris.
+    const [focusedKey, setFocusedKey] = useState<string | null>(null);
 
     const measure = useCallback(() => {
         const rail = railRef.current;
@@ -81,9 +93,31 @@ export default function MovieRow({
         });
     }, []);
 
-    if (movies.length === 0) {
-        return null;
-    }
+    // Di TV kartu hanya menampilkan seni kunci, jadi judul, tahun, dan nilai
+    // kartu terfokus dituliskan di bawah judul baris. Datanya sudah ada di
+    // objek TMDB kartu, tidak ada gambar atau permintaan tambahan.
+    const handleRailFocus = useCallback(
+        (event: FocusEvent<HTMLDivElement>) => {
+            if (!isTv) {
+                return;
+            }
+
+            const card = event.target.closest<HTMLElement>('[data-tv-id]');
+            setFocusedKey(card?.dataset.tvId ?? null);
+        },
+        [isTv],
+    );
+
+    const handleRailBlur = useCallback(
+        (event: FocusEvent<HTMLDivElement>) => {
+            // Pindah antarkartu di baris yang sama juga memicu blur; baris
+            // baru dikosongkan bila fokus benar-benar keluar dari rel.
+            if (!event.currentTarget.contains(event.relatedTarget)) {
+                setFocusedKey(null);
+            }
+        },
+        [],
+    );
 
     const cardWidth =
         variant === 'poster'
@@ -91,6 +125,39 @@ export default function MovieRow({
             : variant === 'large'
               ? 'w-[300px] sm:w-[360px] lg:w-[420px]'
               : 'w-[208px] sm:w-[236px] lg:w-[268px]';
+
+    // Fokus berpindah di setiap tekan panah. Tanpa memo, seluruh kartu baris
+    // ikut dirender ulang hanya untuk mengganti satu baris teks keterangan.
+    const cards = useMemo(
+        () =>
+            movies.map((movie) => (
+                <div
+                    key={`${movie.id}-${movie.media_type ?? 'movie'}`}
+                    className={cn('flex-none', cardWidth)}
+                >
+                    <MovieCard
+                        movie={movie}
+                        onSelect={onSelect}
+                        onHover={onHover}
+                        size={variant}
+                    />
+                </div>
+            )),
+        [movies, cardWidth, onSelect, onHover, variant],
+    );
+
+    if (movies.length === 0) {
+        return null;
+    }
+
+    const focusedMovie =
+        isTv && focusedKey
+            ? movies.find(
+                  (movie) =>
+                      `${movie.media_type ?? 'movie'}-${movie.id}` ===
+                      focusedKey,
+              )
+            : undefined;
 
     return (
         <section className="group/row relative" aria-labelledby={rowId(title)}>
@@ -104,6 +171,13 @@ export default function MovieRow({
                 {note && (
                     <p className="mt-0.5 text-[11px] text-[var(--cinema-ink-faint)]">
                         {note}
+                    </p>
+                )}
+                {/* Tingginya tetap walau kosong, supaya baris di bawahnya
+                    tidak bergeser setiap kali fokus masuk atau keluar. */}
+                {isTv && (
+                    <p className="mt-1 h-6 truncate text-base leading-6 text-[var(--cinema-ink-soft)]">
+                        {focusedMovie ? focusedInfoLine(focusedMovie) : null}
                     </p>
                 )}
             </header>
@@ -128,24 +202,15 @@ export default function MovieRow({
                 <div
                     ref={railRef}
                     onScroll={measure}
+                    onFocus={handleRailFocus}
+                    onBlur={handleRailBlur}
                     tabIndex={0}
                     role="group"
                     aria-label={`Geser baris ${title}`}
+                    data-tv-row
                     className="cinema-focus scrollbar-hide flex gap-2 overflow-x-auto scroll-smooth px-4 py-3 md:gap-2.5 md:px-12 lg:px-16"
                 >
-                    {movies.map((movie) => (
-                        <div
-                            key={`${movie.id}-${movie.media_type ?? 'movie'}`}
-                            className={cn('flex-none', cardWidth)}
-                        >
-                            <MovieCard
-                                movie={movie}
-                                onSelect={onSelect}
-                                onHover={onHover}
-                                size={variant}
-                            />
-                        </div>
-                    ))}
+                    {cards}
                 </div>
             </div>
         </section>
@@ -191,6 +256,20 @@ function RailButton({
             />
         </button>
     );
+}
+
+/** "Judul · Tahun · ★ 7.5", hanya bagian yang benar-benar ada di data TMDB. */
+function focusedInfoLine(movie: Movie): string {
+    const title =
+        movie.title ?? movie.name ?? movie.original_name ?? 'Tanpa judul';
+    const year =
+        movie.release_date?.slice(0, 4) || movie.first_air_date?.slice(0, 4);
+    const rating =
+        typeof movie.vote_average === 'number' && movie.vote_average > 0
+            ? `★ ${movie.vote_average.toFixed(1)}`
+            : null;
+
+    return [title, year, rating].filter(Boolean).join(' · ');
 }
 
 /** Judul baris dipakai sebagai label aksesibilitas, jadi perlu id yang stabil. */

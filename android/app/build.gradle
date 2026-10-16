@@ -1,5 +1,11 @@
 apply plugin: 'com.android.application'
 
+// Nomor versi dari GitHub Actions. Tanpa ini setiap APK bernomor sama
+// (versionCode 1), sehingga tidak bisa dibedakan APK mana yang terpasang di
+// TV. Build lokal tetap bernomor 1.
+def ciRunNumber = System.getenv('GITHUB_RUN_NUMBER')
+def ciShortSha = (System.getenv('GITHUB_SHA') ?: 'lokal').take(7)
+
 android {
     namespace = "com.netflix.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +13,8 @@ android {
         applicationId "com.netflix.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode ciRunNumber ? 1000 + ciRunNumber.toInteger() : 1
+        versionName ciRunNumber ? "1.0.${ciRunNumber}-${ciShortSha}" : "1.0-lokal"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,7 +22,23 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Kunci debug tetap yang ikut di repo. Runner GitHub membuat kunci debug
+    // baru di setiap build, dan Android menolak memasang APK bertanda tangan
+    // lain di atas aplikasi yang sudah ada ("Aplikasi tidak terpasang"),
+    // sehingga TV diam-diam tetap menjalankan APK lama. Kunci ini hanya untuk
+    // build debug yang dipasang manual, bukan untuk rilis Play Store.
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'

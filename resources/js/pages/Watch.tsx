@@ -20,6 +20,7 @@ import { useFocusScope } from '@/hooks/use-focus-scope';
 import { useRemotePlayerControl } from '@/hooks/use-remote-player-control';
 import { useTvMode } from '@/hooks/use-tv-mode';
 import { saveContinueWatching } from '@/lib/continue-watching';
+import type { NativeTvStatus } from '@/lib/tv/native-remote';
 import { cn } from '@/lib/utils';
 import type { TmdbDetails, TmdbEpisode, TmdbSeasonDetails } from '@/types/tmdb';
 
@@ -151,14 +152,22 @@ export default function Watch({
     const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const isTv = useTvMode();
-    const iframeRef = useRef<HTMLIFrameElement>(null);
     const controlButtonRef = useRef<HTMLButtonElement>(null);
     const episodeDrawerRef = useRef<HTMLElement>(null);
     const remote = useRemotePlayerControl({
         enabled: isTv,
-        iframeRef,
         menuTargetRef: controlButtonRef,
     });
+
+    // Musim yang sedang dilihat di daftar episode, terpisah dari musim yang
+    // diputar. Dulu memilih musim di daftar langsung memutar episode 1 musim
+    // itu dan menutup laci, sehingga episode yang sedang ditonton hilang
+    // hanya karena pemirsa melihat-lihat.
+    const [browseSeason, setBrowseSeason] = useState(initialSeason);
+    const [browseLoaded, setBrowseLoaded] = useState<{
+        season: string;
+        details: TmdbSeasonDetails | null;
+    } | null>(null);
 
     // Ambil data detail TMDB
     useEffect(() => {
@@ -199,6 +208,39 @@ export default function Watch({
 
         return () => controller.abort();
     }, [id, type, currentSeason]);
+
+    // Daftar episode musim yang sedang dilihat. Musim yang sama dengan yang
+    // diputar memakai data di atas, jadi tidak diambil dua kali.
+    useEffect(() => {
+        if (type !== 'tv' || !id || browseSeason === currentSeason) return;
+        const controller = new AbortController();
+
+        fetch(`/api/tmdb/tv/${id}/season/${browseSeason}`, {
+            signal: controller.signal,
+            headers: { Accept: 'application/json' },
+        })
+            .then((res) => res.json())
+            .then((data: TmdbSeasonDetails) => {
+                setBrowseLoaded({ season: browseSeason, details: data });
+            })
+            .catch(() => {
+                if (!controller.signal.aborted) {
+                    setBrowseLoaded({ season: browseSeason, details: null });
+                }
+            });
+
+        return () => controller.abort();
+    }, [id, type, browseSeason, currentSeason]);
+
+    const isBrowsingCurrentSeason = browseSeason === currentSeason;
+    const isBrowseLoading = isBrowsingCurrentSeason
+        ? seasonDetails === null
+        : browseLoaded?.season !== browseSeason;
+    const browseSeasonDetails = isBrowsingCurrentSeason
+        ? seasonDetails
+        : browseLoaded?.season === browseSeason
+          ? browseLoaded.details
+          : null;
 
     // Cari data episode saat ini
     const currentEpisodeData = useMemo(() => {
@@ -376,11 +418,12 @@ export default function Watch({
             // Abaikan kesalahan unlock orientasi
         }
 
-        if (returnUrl && returnUrl.startsWith('/')) {
-            router.visit(returnUrl);
-        } else {
-            router.visit('/');
-        }
+        // replace: entri halaman tonton ditimpa, jadi Kembali dari halaman
+        // tujuan tidak pernah memantul lagi ke pemutar.
+        router.visit(
+            returnUrl && returnUrl.startsWith('/') ? returnUrl : '/',
+            { replace: true },
+        );
     }, [returnUrl]);
 
     // Cegah layar mati saat video sedang diputar (Screen Wake Lock)
@@ -463,6 +506,7 @@ export default function Watch({
         const eStr = String(epNum);
         setCurrentSeason(sStr);
         setCurrentEpisode(eStr);
+        setBrowseSeason(sStr);
         setIsEpisodeDrawerOpen(false);
 
         const newUrl = `/watch/tv/${id}?season=${sStr}&episode=${eStr}`;
@@ -486,6 +530,12 @@ export default function Watch({
         }
     };
 
+    // Laci selalu dibuka pada musim yang sedang diputar.
+    const openEpisodeDrawer = () => {
+        setBrowseSeason(currentSeason);
+        setIsEpisodeDrawerOpen(true);
+    };
+
     // Laci episode: Escape/Kembali menutupnya, remote tetap di dalamnya
     // selama terbuka, dan fokus kembali ke tombol Episode saat ditutup.
     useBackHandler(() => setIsEpisodeDrawerOpen(false), {
@@ -493,6 +543,26 @@ export default function Watch({
         overlay: true,
     });
     useFocusScope(episodeDrawerRef, isEpisodeDrawerOpen);
+
+    // Tombol Kendalikan Pemutar baru dirender setelah plugin native menjawab,
+    // biasanya sesudah fokus awal halaman sudah dipasang ke tombol Kembali.
+    // Saat tombol itu muncul, fokus dipindah ke sana, kecuali pemirsa sudah
+    // memilih tempat lain.
+    const isRemoteReady = remote.status?.kind === 'ready';
+
+    useEffect(() => {
+        if (!isTv || !isRemoteReady) return;
+
+        const focused = document.activeElement;
+
+        if (
+            !focused ||
+            focused === document.body ||
+            focused.getAttribute('aria-label') === 'Kembali'
+        ) {
+            controlButtonRef.current?.focus({ preventScroll: true });
+        }
+    }, [isTv, isRemoteReady]);
 
     // Di TV menu atas tidak bersembunyi mengikuti gerak tetikus. Menu tampil
     // selama remote menavigasi halaman, dan menyingkir hanya saat kendali
@@ -597,7 +667,7 @@ export default function Watch({
                                 if (el) {
                                     el.scrollIntoView({ behavior: 'smooth' });
                                 } else {
-                                    setIsEpisodeDrawerOpen(true);
+                                    openEpisodeDrawer();
                                 }
                             }}
                             aria-label="Ke Daftar Episode"
@@ -672,8 +742,10 @@ export default function Watch({
                     <div className="flex shrink-0 items-center gap-2">
                         {/* Tombol utama di TV: menyerahkan remote ke pemutar
                             agar tombol Putar, CC, dan pengaturan di dalam
-                            iframe bisa dijangkau. */}
-                        {isTv && (
+                            iframe bisa dijangkau. Hanya tampil bila kursor
+                            native benar-benar tersedia; tanpa kursor tombol
+                            ini dulu membuat remote mati sampai Kembali. */}
+                        {isTv && remote.status?.kind === 'ready' && (
                             <button
                                 ref={controlButtonRef}
                                 type="button"
@@ -717,7 +789,7 @@ export default function Watch({
                         {type === 'tv' && (
                             <button
                                 type="button"
-                                onClick={() => setIsEpisodeDrawerOpen(true)}
+                                onClick={openEpisodeDrawer}
                                 aria-label="Buka Daftar Episode"
                                 className="pointer-events-auto cinema-focus flex h-9 md:h-11 items-center gap-1.5 rounded-full bg-black/70 px-3 md:px-4 py-1.5 text-xs font-semibold text-white border border-white/15 backdrop-blur-md transition hover:bg-white/20 active:scale-95"
                             >
@@ -744,7 +816,10 @@ export default function Watch({
                 </div>
 
                 {/* Baris 2: Pemilihan Server */}
-                <div className="pointer-events-auto no-scrollbar mt-2 flex items-center gap-1.5 overflow-x-auto border-t border-white/10 pt-2">
+                <div
+                    data-tv-row
+                    className="pointer-events-auto no-scrollbar mt-2 flex items-center gap-1.5 overflow-x-auto border-t border-white/10 py-2"
+                >
                     <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 pr-1">
                         Server:
                     </span>
@@ -754,6 +829,7 @@ export default function Watch({
                             <button
                                 key={server.id}
                                 type="button"
+                                aria-pressed={isActive}
                                 onClick={() => {
                                     setActiveServerId(server.id);
                                     resetHideTimer();
@@ -775,32 +851,36 @@ export default function Watch({
                     </span>
                 </div>
 
-                {isTv && (
-                    <p className="mt-2 max-w-2xl text-xs leading-relaxed text-zinc-300">
-                        {remote.hasCursor
-                            ? 'Pilih Kendalikan Pemutar, lalu gerakkan kursor dengan tombol panah dan tekan OK untuk Putar, takarir (CC), atau pengaturan pemutar. Tekan Kembali untuk membuka menu ini lagi.'
-                            : 'Pilih Kendalikan Pemutar agar tombol remote dipakai di dalam pemutar. Tekan Kembali untuk membuka menu ini lagi.'}
+                {isTv && remote.status && (
+                    <p
+                        role="status"
+                        className={cn(
+                            'mt-1 max-w-2xl text-sm leading-relaxed',
+                            remote.status.kind === 'ready'
+                                ? 'text-zinc-300'
+                                : 'font-semibold text-amber-300',
+                        )}
+                    >
+                        {remoteStatusText(remote.status)}
                     </p>
                 )}
             </header>
 
-            {isTv && remote.mode === 'player' && (
-                <RemotePlayerHint hasCursor={remote.hasCursor} />
-            )}
+            {isTv && remote.mode === 'player' && <RemotePlayerHint />}
 
             {/* KONTEN PEMUTAR VIDEO (16:9 di Mobile Portrait, Fullscreen di Mobile Landscape & Desktop) */}
             <div className="mobile-landscape-fullscreen relative w-full aspect-video bg-black shrink-0 md:absolute md:inset-0 md:h-full md:w-full md:aspect-auto">
                 <iframe
-                    ref={iframeRef}
                     key={`${activeServerId}-${currentSeason}-${currentEpisode}`}
                     src={embedUrl}
                     title={`Pemutar ${title}`}
                     className="h-full w-full border-0"
                     allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
                     allowFullScreen
-                    // Di TV iframe hanya menerima fokus lewat Kendalikan
-                    // Pemutar. Bila ikut dituju panah, remote masuk ke iframe
-                    // tanpa cara keluar selain tombol Kembali.
+                    // Di TV iframe tidak pernah difokus: pemutar pihak ketiga
+                    // tidak menanggapi tombol arah, dan remote yang masuk ke
+                    // sana tidak bisa keluar selain lewat tombol Kembali.
+                    // Pemutar dikendalikan lewat kursor native.
                     tabIndex={isTv ? -1 : undefined}
                 />
 
@@ -921,17 +1001,14 @@ export default function Watch({
 
                             {seasonList.length > 1 && (
                                 <select
-                                    value={currentSeason}
-                                    onChange={(e) => {
-                                        setCurrentSeason(e.target.value);
-                                        selectEpisode(e.target.value, 1);
-                                    }}
+                                    value={browseSeason}
+                                    onChange={(e) => setBrowseSeason(e.target.value)}
                                     aria-label="Pilih Musim"
                                     className="cinema-focus rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-xs font-medium text-white"
                                 >
                                     {seasonList.map((s) => (
                                         <option key={s.season_number} value={s.season_number}>
-                                            {s.name || `Musim ${s.season_number}`} ({s.episode_count} Ep)
+                                            Musim {s.season_number} ({s.episode_count} Ep)
                                         </option>
                                     ))}
                                 </select>
@@ -940,28 +1017,27 @@ export default function Watch({
 
                         {/* List Episode Cards */}
                         <div className="space-y-2.5">
-                            {!seasonDetails ? (
+                            {isBrowseLoading ? (
                                 <div className="flex h-32 flex-col items-center justify-center gap-2 text-zinc-400">
                                     <Loader2 className="h-5 w-5 animate-spin text-[#E50914]" />
                                     <span className="text-xs">Memuat episode...</span>
                                 </div>
-                            ) : seasonDetails.episodes && seasonDetails.episodes.length > 0 ? (
-                                seasonDetails.episodes.map((ep) => {
-                                    const isCurrent = String(ep.episode_number) === String(currentEpisode);
-                                    const stillUrl = ep.still_path
-                                        ? `https://image.tmdb.org/t/p/w300${ep.still_path}`
-                                        : '/placeholder.jpg';
+                            ) : browseSeasonDetails?.episodes && browseSeasonDetails.episodes.length > 0 ? (
+                                browseSeasonDetails.episodes.map((ep) => {
+                                    const isCurrent =
+                                        isBrowsingCurrentSeason &&
+                                        String(ep.episode_number) === String(currentEpisode);
 
                                     return (
                                         <div
                                             key={ep.id}
-                                            onClick={() => selectEpisode(currentSeason, ep.episode_number)}
+                                            onClick={() => selectEpisode(browseSeason, ep.episode_number)}
                                             role="button"
                                             tabIndex={0}
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter' || e.key === ' ') {
                                                     e.preventDefault();
-                                                    selectEpisode(currentSeason, ep.episode_number);
+                                                    selectEpisode(browseSeason, ep.episode_number);
                                                 }
                                             }}
                                             className={cn(
@@ -972,11 +1048,9 @@ export default function Watch({
                                             )}
                                         >
                                             <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded bg-black">
-                                                <img
-                                                    src={stillUrl}
+                                                <EpisodeStill
+                                                    path={ep.still_path}
                                                     alt={`Episode ${ep.episode_number}`}
-                                                    className="h-full w-full object-cover"
-                                                    loading="lazy"
                                                 />
                                                 <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition group-hover:opacity-100">
                                                     <Play className="h-4 w-4 fill-white text-white" />
@@ -1073,63 +1147,100 @@ export default function Watch({
                             </button>
                         </div>
 
-                        {/* Pemilih Musim */}
-                        {seasonList.length > 1 && (
-                            <div className="border-b border-zinc-800 px-5 py-3">
-                                <label
-                                    htmlFor="desktop-season-select"
-                                    className="sr-only"
+                        {/* Pemilih Musim. Di TV berupa deret tombol di dalam
+                            laci: pilihan bawaan <select> membuka dialog sistem
+                            Android di luar laci. Memilih musim hanya
+                            menampilkan daftarnya; episode yang diputar baru
+                            berganti setelah sebuah episode dipilih. */}
+                        {seasonList.length > 1 &&
+                            (isTv ? (
+                                <div
+                                    data-tv-row
+                                    role="group"
+                                    aria-label="Pilih musim"
+                                    className="no-scrollbar flex gap-2 overflow-x-auto border-b border-zinc-800 px-5 py-3"
                                 >
-                                    Pilih Musim
-                                </label>
-                                <select
-                                    id="desktop-season-select"
-                                    value={currentSeason}
-                                    onChange={(e) => {
-                                        setCurrentSeason(e.target.value);
-                                        selectEpisode(e.target.value, 1);
-                                    }}
-                                    className="cinema-focus w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition hover:border-zinc-500"
-                                >
-                                    {seasonList.map((s) => (
-                                        <option
-                                            key={s.season_number}
-                                            value={s.season_number}
-                                        >
-                                            {s.name ||
-                                                `Musim ${s.season_number}`}{' '}
-                                            ({s.episode_count} Episode)
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
+                                    {seasonList.map((s) => {
+                                        const isBrowsed =
+                                            String(s.season_number) ===
+                                            browseSeason;
 
-                        {/* Daftar Episode Desktop */}
-                        <div className="no-scrollbar flex-1 space-y-3 overflow-y-auto p-4">
-                            {!seasonDetails ? (
+                                        return (
+                                            <button
+                                                key={s.season_number}
+                                                type="button"
+                                                aria-pressed={isBrowsed}
+                                                onClick={() =>
+                                                    setBrowseSeason(
+                                                        String(s.season_number),
+                                                    )
+                                                }
+                                                className={cn(
+                                                    'cinema-focus shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition',
+                                                    isBrowsed
+                                                        ? 'border-white text-white'
+                                                        : 'border-zinc-700 text-zinc-300',
+                                                    'focus-visible:bg-white focus-visible:text-black',
+                                                )}
+                                            >
+                                                Musim {s.season_number}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="border-b border-zinc-800 px-5 py-3">
+                                    <label
+                                        htmlFor="desktop-season-select"
+                                        className="sr-only"
+                                    >
+                                        Pilih Musim
+                                    </label>
+                                    <select
+                                        id="desktop-season-select"
+                                        value={browseSeason}
+                                        onChange={(e) =>
+                                            setBrowseSeason(e.target.value)
+                                        }
+                                        className="cinema-focus w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition hover:border-zinc-500"
+                                    >
+                                        {seasonList.map((s) => (
+                                            <option
+                                                key={s.season_number}
+                                                value={s.season_number}
+                                            >
+                                                Musim {s.season_number} (
+                                                {s.episode_count} episode)
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            ))}
+
+                        {/* Daftar Episode Desktop. scroll-py memberi ruang bagi
+                            cincin fokus episode yang digulir ke tepi daftar. */}
+                        <div className="no-scrollbar flex-1 scroll-py-6 space-y-3 overflow-y-auto p-4">
+                            {isBrowseLoading ? (
                                 <div className="flex h-40 flex-col items-center justify-center gap-2 text-zinc-400">
                                     <Loader2 className="h-6 w-6 animate-spin text-[#E50914]" />
                                     <span className="text-xs">
                                         Memuat episode...
                                     </span>
                                 </div>
-                            ) : seasonDetails.episodes &&
-                              seasonDetails.episodes.length > 0 ? (
-                                seasonDetails.episodes.map((ep) => {
+                            ) : browseSeasonDetails?.episodes &&
+                              browseSeasonDetails.episodes.length > 0 ? (
+                                browseSeasonDetails.episodes.map((ep) => {
                                     const isCurrent =
+                                        isBrowsingCurrentSeason &&
                                         String(ep.episode_number) ===
-                                        String(currentEpisode);
-                                    const stillUrl = ep.still_path
-                                        ? `https://image.tmdb.org/t/p/w300${ep.still_path}`
-                                        : '/placeholder.jpg';
+                                            String(currentEpisode);
 
                                     return (
                                         <div
                                             key={ep.id}
                                             onClick={() =>
                                                 selectEpisode(
-                                                    currentSeason,
+                                                    browseSeason,
                                                     ep.episode_number,
                                                 )
                                             }
@@ -1150,7 +1261,7 @@ export default function Watch({
                                                 ) {
                                                     e.preventDefault();
                                                     selectEpisode(
-                                                        currentSeason,
+                                                        browseSeason,
                                                         ep.episode_number,
                                                     );
                                                 }
@@ -1163,11 +1274,9 @@ export default function Watch({
                                             )}
                                         >
                                             <div className="relative h-18 w-28 shrink-0 overflow-hidden rounded bg-black">
-                                                <img
-                                                    src={stillUrl}
+                                                <EpisodeStill
+                                                    path={ep.still_path}
                                                     alt={`Cuplikan episode ${ep.episode_number}`}
-                                                    className="h-full w-full object-cover"
-                                                    loading="lazy"
                                                 />
                                                 <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition group-hover:opacity-100">
                                                     <Play className="h-5 w-5 fill-white text-white" />
@@ -1220,6 +1329,30 @@ export default function Watch({
     );
 }
 
+/**
+ * Gambar episode. Episode tanpa cuplikan di TMDB dulu menunjuk ke
+ * /placeholder.jpg yang tidak ada, jadi setiap kartunya menampilkan ikon
+ * gambar rusak.
+ */
+function EpisodeStill({ path, alt }: { path?: string | null; alt: string }) {
+    if (!path) {
+        return (
+            <div className="flex h-full w-full items-center justify-center bg-zinc-800 text-[10px] text-zinc-500">
+                Tanpa gambar
+            </div>
+        );
+    }
+
+    return (
+        <img
+            src={`https://image.tmdb.org/t/p/w300${path}`}
+            alt={alt}
+            className="h-full w-full object-cover"
+            loading="lazy"
+        />
+    );
+}
+
 /** Lama petunjuk kendali tampil sebelum memudar, cukup untuk dibaca sekali. */
 const REMOTE_HINT_MS = 6000;
 
@@ -1229,7 +1362,25 @@ const REMOTE_HINT_MS = 6000;
  * kembali ke pilihan server dan episode. Tidak menangkap ketukan, supaya
  * kursor tetap bisa mengenai kontrol pemutar di bawahnya.
  */
-function RemotePlayerHint({ hasCursor }: { hasCursor: boolean }) {
+/**
+ * Teks petunjuk kendali remote di menu atas. Bila kursor tidak tersedia,
+ * pemirsa diberi tahu penyebabnya dan apa yang harus dilakukan, bukan
+ * dibiarkan menekan tombol yang tidak berbuat apa-apa.
+ */
+function remoteStatusText(status: NativeTvStatus): string {
+    switch (status.kind) {
+        case 'ready':
+            return 'Pilih Kendalikan Pemutar, lalu gerakkan kursor dengan tombol panah dan tekan OK untuk Putar, takarir (CC), atau pengaturan pemutar. Tekan Kembali untuk membuka menu ini lagi.';
+        case 'missing':
+            return `Aplikasi di TV ini masih versi lama${status.build ? ` (${status.build})` : ''}, jadi kursor remote untuk pemutar belum ada. Hapus aplikasinya dari TV, lalu pasang APK terbaru.`;
+        case 'web':
+            return 'Kendali pemutar dengan remote hanya tersedia di aplikasi Android TV.';
+        case 'error':
+            return `Kursor remote tidak tersedia: ${status.message}`;
+    }
+}
+
+function RemotePlayerHint() {
     const [isVisible, setIsVisible] = useState(true);
 
     useEffect(() => {
@@ -1246,9 +1397,7 @@ function RemotePlayerHint({ hasCursor }: { hasCursor: boolean }) {
                 isVisible ? 'opacity-100' : 'opacity-0',
             )}
         >
-            {hasCursor
-                ? 'Panah menggerakkan kursor, OK untuk klik. Kembali membuka menu.'
-                : 'Remote sekarang mengendalikan pemutar. Kembali membuka menu.'}
+            Panah menggerakkan kursor, OK untuk klik. Kembali membuka menu.
         </p>
     );
 }

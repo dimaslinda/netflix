@@ -1,3 +1,4 @@
+import { router } from '@inertiajs/react';
 import {
     Check,
     ChevronDown,
@@ -31,12 +32,31 @@ interface MovieModalProps {
 
 type MediaType = 'movie' | 'tv';
 
+/** Judul cadangan bila TMDB tidak mengirim judul apa pun. */
+const UNTITLED = 'Tanpa judul';
+
 function getMediaType(movie: Movie): MediaType {
     return movie.media_type === 'tv' ? 'tv' : 'movie';
 }
 
 function getTitle(movie: Movie): string {
-    return movie.title || movie.name || movie.original_name || 'Untitled';
+    return movie.title || movie.name || movie.original_name || UNTITLED;
+}
+
+/**
+ * embed_url dari server sudah membawa mute=1, dan YouTube hanya membaca nilai
+ * pertama dari parameter yang sama. Menambahkan &mute=0 di belakang tidak
+ * berpengaruh apa pun, jadi parameternya harus ditimpa.
+ */
+function withMute(embedUrl: string, muted: boolean): string {
+    try {
+        const url = new URL(embedUrl, window.location.origin);
+        url.searchParams.set('mute', muted ? '1' : '0');
+
+        return url.toString();
+    } catch {
+        return embedUrl;
+    }
 }
 
 export default function MovieModal(props: MovieModalProps) {
@@ -146,13 +166,17 @@ function MovieModalPanel({
     const backdropPath = movie?.backdrop_path || details?.backdrop_path || null;
     const imageUrl = backdropPath
         ? `https://image.tmdb.org/t/p/original${backdropPath}`
-        : 'https://placehold.co/1920x1080/1a1a1a/ffffff?text=No+Image';
+        : 'https://placehold.co/1920x1080/1a1a1a/ffffff?text=Tanpa+Gambar';
 
     const title = getTitle(movie);
     const overview = details?.overview || movie?.overview || '';
-    const trailerEmbed = videos?.best?.embed_url
-        ? `${videos.best.embed_url}&mute=${isMuted ? 1 : 0}`
-        : null;
+    // Di TV cuplikan tidak diputar, cukup gambar latar. Banyak cuplikan
+    // diblokir per wilayah sehingga panel hanya menampilkan pesan galat
+    // YouTube, dan pemutar YouTube kedua terlalu berat untuk chip TV.
+    const trailerEmbed =
+        !isTv && videos?.best?.embed_url
+            ? withMute(videos.best.embed_url, isMuted)
+            : null;
 
     // Rata-rata penilaian TMDB apa adanya. Tidak ada skor kecocokan: aplikasi
     // ini tidak menyimpan riwayat tonton, jadi angka semacam itu hanya bisa
@@ -169,28 +193,30 @@ function MovieModalPanel({
         details?.first_air_date?.split('-')[0] ||
         '';
 
-    const runtime = details?.runtime
-        ? `${Math.floor(details.runtime / 60)}h ${details.runtime % 60}m`
-        : null;
+    const runtime = details?.runtime ? `${details.runtime} menit` : null;
 
     const numberOfSeasons = details?.number_of_seasons;
 
     const handlePlay = () => {
         const query = new URLSearchParams();
-        const finalTitle = title !== 'Untitled' ? title : '';
+        const finalTitle = title !== UNTITLED ? title : '';
         if (finalTitle) query.set('title', finalTitle);
         const poster = movie.poster_path || details?.poster_path;
         if (poster) query.set('poster', poster);
         const backdrop = movie.backdrop_path || details?.backdrop_path;
         if (backdrop) query.set('backdrop', backdrop);
 
+        // Kunjungan Inertia, bukan muat ulang penuh: di TV muat ulang berarti
+        // layar hitam beberapa detik. Panel sengaja tidak ditutup dulu, karena
+        // di TV yang lambat beranda sempat tampil sebelum halaman tujuan.
+        // Panel ikut terlepas bersama halaman ini.
         if (mediaType === 'tv') {
             query.set('season', String(season));
             query.set('episode', '1');
-            window.location.href = `/watch/tv/${movie.id}?${query.toString()}`;
+            router.visit(`/watch/tv/${movie.id}?${query.toString()}`);
         } else {
             const qs = query.toString() ? `?${query.toString()}` : '';
-            window.location.href = `/watch/movie/${movie.id}${qs}`;
+            router.visit(`/watch/movie/${movie.id}${qs}`);
         }
     };
 
@@ -199,8 +225,40 @@ function MovieModalPanel({
             mediaType === 'tv'
                 ? `/title/tv/${movie.id}`
                 : `/title/movie/${movie.id}`;
-        window.location.href = url;
+        router.visit(url);
     };
+
+    // Baris penilaian, tahun, durasi, dan jumlah musim. Di TV baris ini pindah
+    // ke panel pembuka, di layar lain tetap di bawahnya.
+    const metadataItems = (
+        <>
+            {rating && (
+                <span className="flex items-center gap-1.5 font-semibold text-[var(--cinema-accent)]">
+                    <Star
+                        className="h-3.5 w-3.5 fill-current"
+                        aria-hidden="true"
+                    />
+                    {rating}
+                    <span className="font-normal text-[var(--cinema-ink-faint)]">
+                        dari 10 di TMDB
+                    </span>
+                </span>
+            )}
+            {year && (
+                <span className="text-[var(--cinema-ink-soft)]">{year}</span>
+            )}
+            {runtime && (
+                <span className="text-[var(--cinema-ink-soft)]">
+                    {runtime}
+                </span>
+            )}
+            {numberOfSeasons && (
+                <span className="text-[var(--cinema-ink-soft)]">
+                    {numberOfSeasons} musim
+                </span>
+            )}
+        </>
+    );
 
     return (
         <div
@@ -217,8 +275,12 @@ function MovieModalPanel({
                 className="relative z-100 w-full max-w-4xl overflow-hidden rounded-xl bg-[#181818] shadow-2xl"
             >
                 {/* Close Button */}
+                {/* Di TV tombol ini bukan tujuan panah: letaknya di pojok
+                    kanan atas membuatnya menyerobot Atas dari daftar musim,
+                    dan OK di sana menutup panel. Kembali sudah menutupnya. */}
                 <button
                     type="button"
+                    data-tv-skip
                     aria-label="Tutup rincian"
                     className="cinema-focus absolute top-4 right-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-zinc-900 text-white transition hover:bg-zinc-800"
                     onClick={() => onOpenChange(false)}
@@ -226,8 +288,14 @@ function MovieModalPanel({
                     <X className="h-5 w-5" aria-hidden="true" />
                 </button>
 
-                {/* Hero Section */}
-                <div className="relative aspect-video w-full">
+                {/*
+                    Di layar TV 960x540, panel 16:9 setinggi 504 piksel
+                    mendorong tahun, penilaian, dan sinopsis ke luar layar, dan
+                    remote melompatinya karena tidak ada yang bisa difokus.
+                    Tinggi panel dibatasi agar layar pertama sudah menjelaskan
+                    judul ini tanpa menggulir.
+                */}
+                <div className="relative aspect-video w-full tv:aspect-auto tv:h-[60vh]">
                     {trailerEmbed ? (
                         <iframe
                             className="h-full w-full"
@@ -235,10 +303,6 @@ function MovieModalPanel({
                             title={title}
                             allow="autoplay; encrypted-media; fullscreen"
                             allowFullScreen
-                            // Di TV iframe YouTube menelan semua tombol remote
-                            // begitu difokus. Suaranya tetap diatur dari
-                            // tombol bisu di bawah.
-                            tabIndex={isTv ? -1 : undefined}
                         />
                     ) : (
                         <img
@@ -247,16 +311,30 @@ function MovieModalPanel({
                             className="h-full w-full object-cover"
                         />
                     )}
-                    <div className="absolute inset-x-0 bottom-0 h-40 bg-linear-to-t from-[#181818] via-[#181818]/80 to-transparent" />
+                    <div className="absolute inset-x-0 bottom-0 h-40 bg-linear-to-t from-[#181818] via-[#181818]/80 to-transparent tv:h-full" />
 
                     {/* Bottom Controls */}
-                    <div className="absolute right-0 bottom-0 left-0 p-6 md:p-10">
+                    <div className="absolute right-0 bottom-0 left-0 p-6 md:p-10 tv:p-8">
                         <h2
                             id="movie-modal-title"
-                            className="mb-4 text-3xl font-bold drop-shadow-lg md:text-4xl lg:text-5xl"
+                            className="mb-4 text-3xl font-bold drop-shadow-lg md:text-4xl lg:text-5xl tv:mb-2 tv:line-clamp-2 tv:text-3xl"
                         >
                             {title}
                         </h2>
+
+                        {isTv && (
+                            <>
+                                <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                                    {metadataItems}
+                                </div>
+                                <p className="mb-4 line-clamp-3 max-w-2xl text-sm leading-relaxed text-zinc-200">
+                                    {overview ||
+                                        (loading
+                                            ? 'Memuat sinopsis...'
+                                            : 'Sinopsis belum tersedia.')}
+                                </p>
+                            </>
+                        )}
 
                         {/*
                             Tombol suka dan tidak suka dibuang: keduanya tidak
@@ -348,9 +426,15 @@ function MovieModalPanel({
                 </div>
 
                 {/* Info Section */}
-                <div className="grid gap-6 p-6 md:grid-cols-3 md:gap-8 md:p-10">
+                {/*
+                    Di TV kolom kiri disembunyikan: penilaian dan sinopsis sudah
+                    tampil di panel pembuka, dan mengulang paragraf yang sama
+                    tepat di bawahnya terlihat seperti galat. Sinopsis utuh ada
+                    di halaman rincian lengkap.
+                */}
+                <div className="grid gap-6 p-6 md:grid-cols-3 md:gap-8 md:p-10 tv:grid-cols-1">
                     {/* Left Column - Main Info */}
-                    <div className="md:col-span-2">
+                    <div className="md:col-span-2 tv:hidden">
                         {/* Metadata */}
                         {/*
                             Hanya nilai yang datang dari TMDB. Durasi dan jumlah
@@ -360,33 +444,7 @@ function MovieModalPanel({
                             resolusinya belum diketahui.
                         */}
                         <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-                            {rating && (
-                                <span className="flex items-center gap-1.5 font-semibold text-[var(--cinema-accent)]">
-                                    <Star
-                                        className="h-3.5 w-3.5 fill-current"
-                                        aria-hidden="true"
-                                    />
-                                    {rating}
-                                    <span className="font-normal text-[var(--cinema-ink-faint)]">
-                                        dari 10 di TMDB
-                                    </span>
-                                </span>
-                            )}
-                            {year && (
-                                <span className="text-[var(--cinema-ink-soft)]">
-                                    {year}
-                                </span>
-                            )}
-                            {runtime && (
-                                <span className="text-[var(--cinema-ink-soft)]">
-                                    {runtime}
-                                </span>
-                            )}
-                            {numberOfSeasons && (
-                                <span className="text-[var(--cinema-ink-soft)]">
-                                    {numberOfSeasons} musim
-                                </span>
-                            )}
+                            {metadataItems}
                         </div>
 
                         {/* Overview */}
@@ -401,7 +459,7 @@ function MovieModalPanel({
                     <div className="space-y-3 text-sm">
                         {details?.genres && details.genres.length > 0 && (
                             <div>
-                                <span className="text-zinc-500">Genres: </span>
+                                <span className="text-zinc-500">Genre: </span>
                                 <span className="text-zinc-200">
                                     {details.genres
                                         .map((g) => g.name)
@@ -527,7 +585,7 @@ function MovieModalPanel({
                                         className="cinema-focus group flex w-full items-start gap-4 rounded-lg p-3 text-left transition hover:bg-zinc-800 focus-visible:bg-zinc-800"
                                         onClick={() => {
                                             const query = new URLSearchParams();
-                                            const finalTitle = title !== 'Untitled' ? title : '';
+                                            const finalTitle = title !== UNTITLED ? title : '';
                                             if (finalTitle) query.set('title', finalTitle);
                                             const poster = movie.poster_path || details?.poster_path;
                                             if (poster) query.set('poster', poster);
@@ -535,7 +593,7 @@ function MovieModalPanel({
                                             if (backdrop) query.set('backdrop', backdrop);
                                             query.set('season', String(ep.season_number));
                                             query.set('episode', String(ep.episode_number));
-                                            window.location.href = `/watch/tv/${id}?${query.toString()}`;
+                                            router.visit(`/watch/tv/${id}?${query.toString()}`);
                                         }}
                                     >
                                         {/* Episode Number */}
@@ -572,7 +630,7 @@ function MovieModalPanel({
                                                 </span>
                                                 {ep.runtime && (
                                                     <span className="text-sm text-zinc-500">
-                                                        {ep.runtime}m
+                                                        {ep.runtime} menit
                                                     </span>
                                                 )}
                                             </div>
@@ -592,23 +650,11 @@ function MovieModalPanel({
                     </div>
                 )}
 
-                {/* More Like This Section */}
-                <div className="border-t border-zinc-800 p-6 md:p-10">
-                    <h3 className="mb-4 text-xl font-bold text-white md:text-2xl">
-                        Judul Serupa
-                    </h3>
-                    <p className="text-sm text-zinc-400">
-                        Jelajahi judul lainnya di{' '}
-                        <button
-                            type="button"
-                            className="cinema-focus text-zinc-300 underline underline-offset-2 hover:text-white"
-                            onClick={handleMoreInfoPage}
-                        >
-                            halaman rincian lengkap
-                        </button>
-                        .
-                    </p>
-                </div>
+                {/*
+                    Bagian "Judul Serupa" dibuang: tidak ada daftar judul serupa
+                    di mana pun, dan tautannya hanya membuka halaman rincian
+                    yang juga tidak memuatnya.
+                */}
             </div>
         </div>
     );
