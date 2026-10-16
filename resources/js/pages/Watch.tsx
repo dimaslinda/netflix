@@ -1,4 +1,3 @@
-import { App as CapApp } from '@capacitor/app';
 import { ScreenOrientation } from '@capacitor/screen-orientation';
 import { Head, router } from '@inertiajs/react';
 import {
@@ -7,6 +6,7 @@ import {
     Loader2,
     Maximize,
     Minimize,
+    MousePointer2,
     Play,
     RotateCw,
     Server,
@@ -15,6 +15,10 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { useBackHandler } from '@/hooks/use-back-handler';
+import { useFocusScope } from '@/hooks/use-focus-scope';
+import { useRemotePlayerControl } from '@/hooks/use-remote-player-control';
+import { useTvMode } from '@/hooks/use-tv-mode';
 import { saveContinueWatching } from '@/lib/continue-watching';
 import { cn } from '@/lib/utils';
 import type { TmdbDetails, TmdbEpisode, TmdbSeasonDetails } from '@/types/tmdb';
@@ -145,6 +149,16 @@ export default function Watch({
     const [isEpisodeDrawerOpen, setIsEpisodeDrawerOpen] = useState(false);
     const [showUi, setShowUi] = useState(true);
     const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const isTv = useTvMode();
+    const iframeRef = useRef<HTMLIFrameElement>(null);
+    const controlButtonRef = useRef<HTMLButtonElement>(null);
+    const episodeDrawerRef = useRef<HTMLElement>(null);
+    const remote = useRemotePlayerControl({
+        enabled: isTv,
+        iframeRef,
+        menuTargetRef: controlButtonRef,
+    });
 
     // Ambil data detail TMDB
     useEffect(() => {
@@ -408,28 +422,9 @@ export default function Watch({
         };
     }, []);
 
-    // Tangani tombol fisik Back / gestur swipe di Android (Capacitor)
-    useEffect(() => {
-        let removeListener: (() => void) | null = null;
-        try {
-            const listenerPromise = CapApp.addListener('backButton', () => {
-                handleBack();
-            });
-            listenerPromise
-                .then((handle) => {
-                    removeListener = () => handle.remove();
-                })
-                .catch(() => {});
-        } catch {
-            // Berjalan di browser reguler tanpa runtime native Capacitor
-        }
-
-        return () => {
-            if (removeListener) {
-                removeListener();
-            }
-        };
-    }, [handleBack]);
+    // Tombol fisik Back / gestur swipe di Android. Laci episode dan mode
+    // kendali pemutar mendaftar di atasnya, jadi keduanya ditutup lebih dulu.
+    useBackHandler(handleBack);
 
     // Pelacak & pengalih mode layar penuh
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -491,16 +486,20 @@ export default function Watch({
         }
     };
 
-    // Keyboard navigation (ESC tutup drawer)
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && isEpisodeDrawerOpen) {
-                setIsEpisodeDrawerOpen(false);
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isEpisodeDrawerOpen]);
+    // Laci episode: Escape/Kembali menutupnya, remote tetap di dalamnya
+    // selama terbuka, dan fokus kembali ke tombol Episode saat ditutup.
+    useBackHandler(() => setIsEpisodeDrawerOpen(false), {
+        enabled: isEpisodeDrawerOpen,
+        overlay: true,
+    });
+    useFocusScope(episodeDrawerRef, isEpisodeDrawerOpen);
+
+    // Di TV menu atas tidak bersembunyi mengikuti gerak tetikus. Menu tampil
+    // selama remote menavigasi halaman, dan menyingkir hanya saat kendali
+    // diserahkan ke pemutar.
+    const isHeaderVisible = isTv
+        ? remote.mode === 'menu'
+        : showUi || isEpisodeDrawerOpen;
 
     const title =
         propTitle ??
@@ -628,10 +627,14 @@ export default function Watch({
                 className={cn(
                     'pointer-events-none fixed inset-x-0 top-0 z-45 flex-col bg-linear-to-b from-black/95 via-black/80 to-transparent px-4 pt-3 pb-6 transition-all duration-300 md:px-8',
                     'hidden md:flex mobile-landscape-visible',
-                    showUi || isEpisodeDrawerOpen
+                    isHeaderVisible
                         ? 'opacity-100 translate-y-0'
                         : 'opacity-0 -translate-y-4 pointer-events-none',
                 )}
+                // Di TV, saat kendali di pemutar, isi menu tidak boleh dituju
+                // remote maupun ikut terketuk kursor. Di desktop tidak dipakai:
+                // menu yang bersembunyi tetap harus terjangkau Tab.
+                inert={isTv && !isHeaderVisible}
             >
                 {/* Baris 1: Tombol Navigasi, Judul, dan Tombol Kontrol Cepat */}
                 <div className="flex items-center justify-between gap-2">
@@ -667,13 +670,33 @@ export default function Watch({
 
                     {/* Sisi Kanan: Kontrol Putar Layar, Episode & Fullscreen */}
                     <div className="flex shrink-0 items-center gap-2">
-                        {/* Tombol Putar Layar */}
+                        {/* Tombol utama di TV: menyerahkan remote ke pemutar
+                            agar tombol Putar, CC, dan pengaturan di dalam
+                            iframe bisa dijangkau. */}
+                        {isTv && (
+                            <button
+                                ref={controlButtonRef}
+                                type="button"
+                                onClick={() => void remote.takeControl()}
+                                data-tv-autofocus
+                                className="pointer-events-auto cinema-focus flex h-11 items-center gap-2 rounded-full bg-white px-4 text-sm font-bold text-black transition hover:bg-white/85"
+                            >
+                                <MousePointer2
+                                    className="h-4 w-4 shrink-0"
+                                    aria-hidden="true"
+                                />
+                                <span>Kendalikan Pemutar</span>
+                            </button>
+                        )}
+
+                        {/* Tombol Putar Layar. Tidak berguna di TV yang
+                            selalu lanskap. */}
                         <button
                             type="button"
                             onClick={toggleRotation}
                             aria-label={isLandscape ? 'Kembali ke Mode Potret' : 'Putar Layar ke Mode Lanskap'}
                             title={isLandscape ? 'Kembali ke Mode Potret' : 'Putar Layar (Lanskap)'}
-                            className="pointer-events-auto cinema-focus flex h-9 md:h-11 items-center gap-1.5 rounded-full bg-white/15 px-3 md:px-3.5 py-1.5 text-xs font-semibold text-white border border-white/20 backdrop-blur-sm transition hover:bg-white/25 active:scale-95"
+                            className="pointer-events-auto cinema-focus flex h-9 md:h-11 items-center gap-1.5 rounded-full bg-white/15 px-3 md:px-3.5 py-1.5 text-xs font-semibold text-white border border-white/20 backdrop-blur-sm transition hover:bg-white/25 active:scale-95 tv:hidden"
                         >
                             <RotateCw className="h-3.5 w-3.5 md:h-4 md:w-4 shrink-0" aria-hidden="true" />
                             <span>{isLandscape ? 'Potret' : 'Putar Layar'}</span>
@@ -707,7 +730,9 @@ export default function Watch({
                             type="button"
                             onClick={toggleFullscreen}
                             aria-label={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
-                            className="pointer-events-auto cinema-focus hidden sm:flex h-9 w-9 md:h-11 md:w-11 items-center justify-center rounded-full bg-black/70 text-white border border-white/15 backdrop-blur-md transition hover:bg-white/20 active:scale-95"
+                            // Aplikasi TV sudah memenuhi layar, dan Fullscreen
+                            // API di WebView TV tidak selalu tersedia.
+                            className="pointer-events-auto cinema-focus hidden sm:flex h-9 w-9 md:h-11 md:w-11 items-center justify-center rounded-full bg-black/70 text-white border border-white/15 backdrop-blur-md transition hover:bg-white/20 active:scale-95 tv:hidden"
                         >
                             {isFullscreen ? (
                                 <Minimize className="h-4 w-4" />
@@ -745,25 +770,42 @@ export default function Watch({
                         );
                     })}
 
-                    <span className="text-[10px] md:text-[11px] text-zinc-400 pl-2 hidden sm:inline">
+                    <span className="text-[10px] md:text-[11px] text-zinc-400 pl-2 hidden sm:inline tv:hidden">
                         💡 Takarir (CC) dapat diaktifkan langsung di tombol CC pemutar video
                     </span>
                 </div>
+
+                {isTv && (
+                    <p className="mt-2 max-w-2xl text-xs leading-relaxed text-zinc-300">
+                        {remote.hasCursor
+                            ? 'Pilih Kendalikan Pemutar, lalu gerakkan kursor dengan tombol panah dan tekan OK untuk Putar, takarir (CC), atau pengaturan pemutar. Tekan Kembali untuk membuka menu ini lagi.'
+                            : 'Pilih Kendalikan Pemutar agar tombol remote dipakai di dalam pemutar. Tekan Kembali untuk membuka menu ini lagi.'}
+                    </p>
+                )}
             </header>
+
+            {isTv && remote.mode === 'player' && (
+                <RemotePlayerHint hasCursor={remote.hasCursor} />
+            )}
 
             {/* KONTEN PEMUTAR VIDEO (16:9 di Mobile Portrait, Fullscreen di Mobile Landscape & Desktop) */}
             <div className="mobile-landscape-fullscreen relative w-full aspect-video bg-black shrink-0 md:absolute md:inset-0 md:h-full md:w-full md:aspect-auto">
                 <iframe
+                    ref={iframeRef}
                     key={`${activeServerId}-${currentSeason}-${currentEpisode}`}
                     src={embedUrl}
                     title={`Pemutar ${title}`}
                     className="h-full w-full border-0"
                     allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
                     allowFullScreen
+                    // Di TV iframe hanya menerima fokus lewat Kendalikan
+                    // Pemutar. Bila ikut dituju panah, remote masuk ke iframe
+                    // tanpa cara keluar selain tombol Kembali.
+                    tabIndex={isTv ? -1 : undefined}
                 />
 
                 {/* Area Sentuh Cepat Bagian Atas untuk Memunculkan Header Lengkap saat Tersembunyi */}
-                {!showUi && !isEpisodeDrawerOpen && (
+                {!isTv && !showUi && !isEpisodeDrawerOpen && (
                     <div
                         onClick={() => resetHideTimer()}
                         onTouchStart={() => resetHideTimer()}
@@ -775,7 +817,10 @@ export default function Watch({
                 {/* Tombol Aksi Cepat Mengambang (Selalu Muncul Elegan saat Header Tersembunyi) */}
                 <div
                     className={cn(
-                        'pointer-events-auto fixed top-3.5 inset-x-3.5 z-40 flex items-center justify-between transition-all duration-300',
+                        // Di TV menu atas yang menggantikan tombol-tombol ini,
+                        // dan saat kursor aktif tombol ini hanya akan ikut
+                        // terketuk di atas kontrol pemutar.
+                        'pointer-events-auto fixed top-3.5 inset-x-3.5 z-40 flex items-center justify-between transition-all duration-300 tv:hidden',
                         showUi || isEpisodeDrawerOpen
                             ? 'opacity-0 pointer-events-none -translate-y-2'
                             : 'opacity-85 hover:opacity-100 translate-y-0',
@@ -992,6 +1037,13 @@ export default function Watch({
 
                     {/* Panel Samping Desktop */}
                     <aside
+                        ref={episodeDrawerRef}
+                        role="dialog"
+                        aria-modal={isEpisodeDrawerOpen}
+                        aria-label="Daftar episode"
+                        // Laci tertutup hanya digeser ke luar layar. Tanpa
+                        // inert, isinya tetap bisa dituju Tab dan remote.
+                        inert={!isEpisodeDrawerOpen}
                         className={cn(
                             'fixed z-50 hidden md:flex flex-col bg-[#141414] shadow-2xl transition-all duration-300 ease-in-out',
                             'top-0 right-0 bottom-0 w-full max-w-md border-l border-zinc-800',
@@ -1083,6 +1135,14 @@ export default function Watch({
                                             }
                                             role="button"
                                             tabIndex={0}
+                                            aria-current={
+                                                isCurrent ? 'true' : undefined
+                                            }
+                                            // Laci dibuka dengan fokus di
+                                            // episode yang sedang diputar.
+                                            data-tv-autofocus={
+                                                isCurrent ? true : undefined
+                                            }
                                             onKeyDown={(e) => {
                                                 if (
                                                     e.key === 'Enter' ||
@@ -1157,5 +1217,38 @@ export default function Watch({
                 </>
             )}
         </div>
+    );
+}
+
+/** Lama petunjuk kendali tampil sebelum memudar, cukup untuk dibaca sekali. */
+const REMOTE_HINT_MS = 6000;
+
+/**
+ * Pengingat singkat saat remote diserahkan ke pemutar. Menu atas sudah
+ * menyingkir pada saat itu, jadi tanpa petunjuk ini pemirsa tidak tahu cara
+ * kembali ke pilihan server dan episode. Tidak menangkap ketukan, supaya
+ * kursor tetap bisa mengenai kontrol pemutar di bawahnya.
+ */
+function RemotePlayerHint({ hasCursor }: { hasCursor: boolean }) {
+    const [isVisible, setIsVisible] = useState(true);
+
+    useEffect(() => {
+        const timer = setTimeout(() => setIsVisible(false), REMOTE_HINT_MS);
+
+        return () => clearTimeout(timer);
+    }, []);
+
+    return (
+        <p
+            role="status"
+            className={cn(
+                'pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-black/85 px-5 py-2.5 text-sm font-semibold text-white shadow-xl transition-opacity duration-500',
+                isVisible ? 'opacity-100' : 'opacity-0',
+            )}
+        >
+            {hasCursor
+                ? 'Panah menggerakkan kursor, OK untuk klik. Kembali membuka menu.'
+                : 'Remote sekarang mengendalikan pemutar. Kembali membuka menu.'}
+        </p>
     );
 }

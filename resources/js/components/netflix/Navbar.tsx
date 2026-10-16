@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { useBackHandler } from '@/hooks/use-back-handler';
+import { useFocusScope } from '@/hooks/use-focus-scope';
 import { cn } from '@/lib/utils';
 
 import BrandMark from './BrandMark';
@@ -62,6 +64,22 @@ export default function Navbar({ activePath }: NavbarProps) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const profileRef = useRef<HTMLDivElement>(null);
+    const profileMenuRef = useRef<HTMLDivElement>(null);
+    const mobileMenuRef = useRef<HTMLElement>(null);
+
+    // Menu profil dan laci navigasi adalah lapisan: remote tidak keluar dari
+    // dalamnya, dan Kembali/Escape menutupnya sambil mengembalikan fokus ke
+    // tombol pembuka.
+    useFocusScope(profileMenuRef, isProfileOpen);
+    useFocusScope(mobileMenuRef, isMenuOpen);
+    useBackHandler(() => setIsProfileOpen(false), {
+        enabled: isProfileOpen,
+        overlay: true,
+    });
+    useBackHandler(() => setIsMenuOpen(false), {
+        enabled: isMenuOpen,
+        overlay: true,
+    });
 
     // Pantau scroll untuk memberi latar belakang pekat saat halaman bergeser
     useEffect(() => {
@@ -190,7 +208,10 @@ export default function Navbar({ activePath }: NavbarProps) {
                                 </button>
 
                                 {isProfileOpen && (
-                                    <div className="absolute right-0 mt-2 w-56 rounded-lg border border-white/10 bg-zinc-950/95 p-1.5 shadow-2xl backdrop-blur-md">
+                                    <div
+                                        ref={profileMenuRef}
+                                        className="absolute right-0 mt-2 w-56 rounded-lg border border-white/10 bg-zinc-950/95 p-1.5 shadow-2xl backdrop-blur-md"
+                                    >
                                         <div className="flex items-center gap-2.5 border-b border-white/10 px-3 py-2.5">
                                             <NetflixAvatar
                                                 avatarId={user.avatar}
@@ -212,7 +233,7 @@ export default function Navbar({ activePath }: NavbarProps) {
                                                 onClick={() =>
                                                     setIsProfileOpen(false)
                                                 }
-                                                className="flex items-center gap-2.5 rounded px-3 py-2 text-xs font-medium text-zinc-300 transition hover:bg-white/10 hover:text-white"
+                                                className="cinema-focus flex min-h-11 items-center gap-2.5 rounded px-3 py-2 text-xs font-medium text-zinc-300 transition hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white"
                                             >
                                                 <Bookmark className="h-4 w-4 text-zinc-400" />
                                                 <span>Daftar Saya</span>
@@ -223,7 +244,7 @@ export default function Navbar({ activePath }: NavbarProps) {
                                                 onClick={() =>
                                                     setIsProfileOpen(false)
                                                 }
-                                                className="flex items-center gap-2.5 rounded px-3 py-2 text-xs font-medium text-zinc-300 transition hover:bg-white/10 hover:text-white"
+                                                className="cinema-focus flex min-h-11 items-center gap-2.5 rounded px-3 py-2 text-xs font-medium text-zinc-300 transition hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white"
                                             >
                                                 <Clock className="h-4 w-4 text-zinc-400" />
                                                 <span>Riwayat Tontonan</span>
@@ -234,7 +255,7 @@ export default function Navbar({ activePath }: NavbarProps) {
                                                 onClick={() =>
                                                     setIsProfileOpen(false)
                                                 }
-                                                className="flex items-center gap-2.5 rounded px-3 py-2 text-xs font-medium text-zinc-300 transition hover:bg-white/10 hover:text-white"
+                                                className="cinema-focus flex min-h-11 items-center gap-2.5 rounded px-3 py-2 text-xs font-medium text-zinc-300 transition hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white"
                                             >
                                                 <UserIcon className="h-4 w-4 text-zinc-400" />
                                                 <span>Pengaturan Akun</span>
@@ -245,7 +266,7 @@ export default function Navbar({ activePath }: NavbarProps) {
                                             <button
                                                 type="button"
                                                 onClick={handleLogout}
-                                                className="flex w-full items-center gap-2.5 rounded px-3 py-2 text-xs font-medium text-red-400 transition hover:bg-red-500/10 hover:text-red-300"
+                                                className="cinema-focus flex min-h-11 w-full items-center gap-2.5 rounded px-3 py-2 text-xs font-medium text-red-400 transition hover:bg-red-500/10 hover:text-red-300 focus-visible:bg-red-500/10"
                                             >
                                                 <LogOut className="h-4 w-4" />
                                                 <span>Keluar dari Netflix</span>
@@ -290,6 +311,7 @@ export default function Navbar({ activePath }: NavbarProps) {
                     />
 
                     <nav
+                        ref={mobileMenuRef}
                         aria-label="Daftar navigasi mobile"
                         className="absolute inset-y-0 right-0 flex w-full max-w-sm flex-col overflow-y-auto bg-[var(--cinema-raised)] p-6 shadow-2xl"
                     >
@@ -308,11 +330,13 @@ export default function Navbar({ activePath }: NavbarProps) {
                         <MenuSection
                             title="Jelajah"
                             links={PRIMARY_LINKS}
+                            activePath={resolvedActivePath}
                             onNavigate={() => setIsMenuOpen(false)}
                         />
                         <MenuSection
                             title="Genre"
                             links={GENRE_LINKS}
+                            activePath={resolvedActivePath}
                             onNavigate={() => setIsMenuOpen(false)}
                         />
 
@@ -390,10 +414,12 @@ export default function Navbar({ activePath }: NavbarProps) {
 function MenuSection({
     title,
     links,
+    activePath,
     onNavigate,
 }: {
     title: string;
     links: readonly { label: string; href: string; isLive?: boolean }[];
+    activePath: string;
     onNavigate: () => void;
 }) {
     return (
@@ -404,10 +430,18 @@ function MenuSection({
             <ul className="mt-3 space-y-1">
                 {links.map((link) => (
                     <li key={link.href}>
+                        {/* Tautan halaman yang sedang dibuka menjadi tujuan
+                            pertama remote saat laci terbuka. */}
                         <Link
                             href={link.href}
                             onClick={onNavigate}
-                            className="cinema-focus flex min-h-11 items-center rounded px-3 text-[15px] font-medium text-[var(--cinema-ink-soft)] transition hover:bg-white/5 hover:text-[var(--cinema-ink)]"
+                            aria-current={
+                                activePath === link.href ? 'page' : undefined
+                            }
+                            data-tv-autofocus={
+                                activePath === link.href ? true : undefined
+                            }
+                            className="cinema-focus flex min-h-11 items-center rounded px-3 text-[15px] font-medium text-[var(--cinema-ink-soft)] transition hover:bg-white/5 hover:text-[var(--cinema-ink)] aria-[current=page]:text-[var(--cinema-ink)]"
                         >
                             {link.isLive && (
                                 <span className="mr-2 flex h-2 w-2 relative">

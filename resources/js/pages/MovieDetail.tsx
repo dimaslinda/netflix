@@ -3,6 +3,8 @@ import { ArrowLeft, Loader2, Play, Star } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import Navbar from '@/components/netflix/Navbar';
+import { useTvMode } from '@/hooks/use-tv-mode';
+import { focusInitial } from '@/lib/tv/spatial-navigation';
 import { cn } from '@/lib/utils';
 import {
     type TmdbDetails,
@@ -25,6 +27,7 @@ type LoadStatus = 'loading' | 'ready' | 'error';
  * yang sampai di sini sudah memilih dan tidak perlu ditawari judul lain.
  */
 export default function MovieDetail({ type, id }: MovieDetailProps) {
+    const isTv = useTvMode();
     const [status, setStatus] = useState<LoadStatus>('loading');
     const [details, setDetails] = useState<TmdbDetails | null>(null);
     const [videos, setVideos] = useState<TmdbVideosApiResponse | null>(null);
@@ -65,6 +68,21 @@ export default function MovieDetail({ type, id }: MovieDetailProps) {
 
         return () => controller.abort();
     }, [type, id]);
+
+    // Tombol Putar baru ada setelah rincian termuat. Selama memuat, fokus
+    // remote jatuh ke bilah navigasi, jadi dipindah sekali ke Putar begitu
+    // tombolnya muncul, kecuali pemirsa sudah memilih tempat lain.
+    useEffect(() => {
+        if (!isTv || status !== 'ready') {
+            return;
+        }
+
+        const focused = document.activeElement;
+
+        if (!focused || focused === document.body || focused.closest('header')) {
+            focusInitial();
+        }
+    }, [isTv, status]);
 
     useEffect(() => {
         if (type !== 'tv') {
@@ -170,6 +188,9 @@ export default function MovieDetail({ type, id }: MovieDetailProps) {
                         title={`Cuplikan ${title}`}
                         allow="autoplay; encrypted-media; fullscreen"
                         allowFullScreen
+                        // Di TV iframe YouTube menelan semua tombol remote
+                        // begitu difokus, termasuk panah untuk keluar.
+                        tabIndex={isTv ? -1 : undefined}
                         className="h-full w-full"
                     />
                 ) : artUrl ? (
@@ -219,6 +240,7 @@ export default function MovieDetail({ type, id }: MovieDetailProps) {
                     <button
                         type="button"
                         onClick={play}
+                        data-tv-autofocus
                         className="cinema-focus mt-5 flex min-h-11 items-center gap-2 rounded bg-[var(--cinema-ink)] px-6 text-[15px] font-bold text-[var(--cinema-base)] transition hover:bg-white active:scale-[0.98]"
                     >
                         <Play

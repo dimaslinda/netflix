@@ -95,6 +95,7 @@ export default function MovieCard({
                 className={cn(
                     'relative overflow-hidden bg-[var(--cinema-raised)] transition-[transform,box-shadow] duration-300 ease-out',
                     'group-hover/card:scale-[1.04] group-hover/card:shadow-[0_12px_32px_rgba(0,0,0,0.6)]',
+                    'group-focus-visible/card:shadow-[0_12px_32px_rgba(0,0,0,0.6)]',
                     size === 'poster' ? 'aspect-2/3' : 'aspect-video',
                 )}
                 style={{ borderRadius: 'var(--cinema-radius-card)' }}
@@ -135,9 +136,10 @@ export default function MovieCard({
                     </span>
                 )}
 
-                {/* Judul muncul di atas seni kunci saat disentuh tetikus, jadi
-                    baris tetap rapat tanpa mengorbankan keterbacaan. */}
-                <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 to-transparent p-2.5 pt-8 text-[12px] leading-tight font-semibold text-[var(--cinema-ink)] opacity-0 transition-opacity duration-200 group-hover/card:opacity-100">
+                {/* Judul muncul di atas seni kunci saat disentuh tetikus atau
+                    difokus remote, jadi baris tetap rapat tanpa mengorbankan
+                    keterbacaan. */}
+                <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 to-transparent p-2.5 pt-8 text-[12px] leading-tight font-semibold text-[var(--cinema-ink)] opacity-0 transition-opacity duration-200 group-hover/card:opacity-100 group-focus-visible/card:opacity-100">
                     {title}
                 </span>
             </div>

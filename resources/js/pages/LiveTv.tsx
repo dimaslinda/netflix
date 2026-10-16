@@ -1,4 +1,3 @@
-import { App as CapApp } from '@capacitor/app';
 import { ScreenOrientation } from '@capacitor/screen-orientation';
 import { Head, router } from '@inertiajs/react';
 import Hls from 'hls.js';
@@ -19,6 +18,10 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import Navbar from '@/components/netflix/Navbar';
+import { useBackHandler } from '@/hooks/use-back-handler';
+import { useFocusScope } from '@/hooks/use-focus-scope';
+import { useTvMode } from '@/hooks/use-tv-mode';
+import { TV_EDGE_EVENT, type TvEdgeEventDetail } from '@/lib/tv/spatial-navigation';
 import { cn } from '@/lib/utils';
 
 export interface LiveChannel {
@@ -118,6 +121,14 @@ export default function LiveTv({
     const [hasError, setHasError] = useState<boolean>(false);
     const [errorMessage, setErrorMessage] = useState<string>('');
     const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+    // Layar penuh versi CSS untuk TV. Fullscreen API di WebView TV tidak
+    // selalu tersedia, sedangkan pemutar yang memenuhi jendela cukup karena
+    // aplikasi TV sendiri sudah memenuhi layar.
+    const [isExpanded, setIsExpanded] = useState<boolean>(false);
+    const isTheater = isFullscreen || isExpanded;
+    const isTv = useTvMode();
+    const playerContainerRef = useRef<HTMLDivElement | null>(null);
 
     // Kontrol UI mengambang di player
     const [showPlayerControls, setShowPlayerControls] = useState<boolean>(true);
@@ -275,6 +286,12 @@ export default function LiveTv({
     }, []);
 
     const toggleFullscreen = useCallback(async () => {
+        if (isTv) {
+            setIsExpanded((expanded) => !expanded);
+
+            return;
+        }
+
         try {
             if (!document.fullscreenElement) {
                 const el = document.getElementById('live-player-container');
@@ -291,34 +308,19 @@ export default function LiveTv({
         } catch {
             // Fullscreen gagal
         }
-    }, []);
+    }, [isTv]);
 
-    // Tangani tombol fisik Back di Android (Capacitor)
-    useEffect(() => {
-        let removeListener: (() => void) | null = null;
-        try {
-            const listenerPromise = CapApp.addListener('backButton', () => {
-                if (isFullscreen) {
-                    toggleFullscreen();
-                } else {
-                    router.visit('/');
-                }
-            });
-            listenerPromise
-                .then((h) => {
-                    removeListener = () => h.remove();
-                })
-                .catch(() => {});
-        } catch {
-            // Berjalan di browser biasa
-        }
+    // Tombol fisik Back di Android: keluar dari layar penuh lebih dulu, baru
+    // kembali ke beranda.
+    useBackHandler(() => router.visit('/'));
+    useBackHandler(() => void toggleFullscreen(), {
+        enabled: isTheater,
+        overlay: true,
+    });
 
-        return () => {
-            if (removeListener) {
-                removeListener();
-            }
-        };
-    }, [isFullscreen, toggleFullscreen]);
+    // Saat layar penuh, remote hanya bergerak di antara kontrol pemutar.
+    // Daftar kanal di belakangnya masih ada di DOM dan tidak boleh dituju.
+    useFocusScope(playerContainerRef, isTheater);
 
     // Muat & Putar Siaran HLS saat Channel Aktif Berubah
     const loadStream = useCallback((streamUrl: string) => {
@@ -508,25 +510,89 @@ export default function LiveTv({
         resetControlsTimer();
     }, [resetControlsTimer]);
 
+    // Tombol khusus remote: ganti kanal dan putar/jeda bekerja dari mana pun
+    // fokusnya berada. Tombol apa pun juga memunculkan kontrol pemutar.
+    useEffect(() => {
+        if (!isTv) {
+            return;
+        }
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            resetControlsTimer();
+
+            switch (event.key) {
+                case 'ChannelUp':
+                case 'PageUp':
+                    event.preventDefault();
+                    handlePrevChannel();
+                    break;
+                case 'ChannelDown':
+                case 'PageDown':
+                    event.preventDefault();
+                    handleNextChannel();
+                    break;
+                case 'MediaPlayPause':
+                case 'MediaPlay':
+                case 'MediaPause':
+                    event.preventDefault();
+                    togglePlay();
+                    break;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isTv, resetControlsTimer, handlePrevChannel, handleNextChannel, togglePlay]);
+
+    // Di layar penuh, panah atas/bawah tidak punya tujuan di bilah kontrol
+    // yang mendatar, jadi dipakai untuk pindah kanal seperti remote TV biasa.
+    useEffect(() => {
+        const container = playerContainerRef.current;
+
+        if (!container || !isTheater) {
+            return;
+        }
+
+        const handleEdge = (event: Event) => {
+            const { direction } = (event as CustomEvent<TvEdgeEventDetail>).detail;
+
+            if (direction === 'up') {
+                event.preventDefault();
+                handlePrevChannel();
+            } else if (direction === 'down') {
+                event.preventDefault();
+                handleNextChannel();
+            }
+        };
+
+        container.addEventListener(TV_EDGE_EVENT, handleEdge);
+
+        return () => container.removeEventListener(TV_EDGE_EVENT, handleEdge);
+    }, [isTheater, handlePrevChannel, handleNextChannel]);
+
     return (
         <div className="min-h-screen bg-(--cinema-base) text-(--cinema-ink) flex flex-col font-sans select-none overflow-x-hidden">
             <Head title={`Live TV: ${activeChannel?.name ?? 'Siaran Langsung'} - Netflix`} />
 
             {/* Navbar Utama (Hanya terlihat di mode normal, disembunyikan saat fullscreen) */}
-            {!isFullscreen && <Navbar activePath="/live-tv" />}
+            {!isTheater && <Navbar activePath="/live-tv" />}
 
-            <main className={cn('flex-1 flex flex-col', !isFullscreen && 'pt-16')}>
-                {/* GRID UTAMA LIVE TV */}
-                <div className="flex-1 w-full max-w-7xl mx-auto p-3 sm:p-5 lg:p-8 flex flex-col lg:flex-row gap-5 lg:gap-8">
+            <main className={cn('flex-1 flex flex-col', !isTheater && 'pt-16')}>
+                {/* GRID UTAMA LIVE TV. Di TV (lebar sekitar 960px) pemutar dan
+                    daftar kanal berdampingan, supaya ganti kanal tidak perlu
+                    menggulir ke bawah pemutar. */}
+                <div className="flex-1 w-full max-w-7xl mx-auto p-3 sm:p-5 lg:p-8 flex flex-col lg:flex-row gap-5 lg:gap-8 tv:flex-row">
                     {/* KOLOM KIRI / ATAS: PEMUTAR VIDEO LIVE */}
                     <div className="flex-1 flex flex-col min-w-0">
                         <div
+                            ref={playerContainerRef}
                             id="live-player-container"
                             onMouseMove={resetControlsTimer}
                             onTouchStart={resetControlsTimer}
                             className={cn(
                                 'relative aspect-video w-full bg-black rounded-xl overflow-hidden shadow-2xl border border-white/10 group',
-                                isFullscreen && 'fixed inset-0 z-50 h-screen w-screen rounded-none border-none aspect-auto',
+                                isTheater && 'fixed inset-0 z-50 h-screen w-screen rounded-none border-none aspect-auto',
                             )}
                         >
                             {/* Video Element Tunggal (Murni Native HTML5 Video - Tanpa Iframe) */}
@@ -624,8 +690,12 @@ export default function LiveTv({
                             {/* Floating Overlay Controls Bar */}
                             <div
                                 className={cn(
-                                    'absolute inset-x-0 bottom-0 z-30 bg-linear-to-t from-black/95 via-black/70 to-transparent p-3 sm:p-4 flex items-center justify-between transition-opacity duration-300',
-                                    showPlayerControls || !isPlaying ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none',
+                                    // focus-within: kontrol tidak boleh memudar
+                                    // selagi salah satu tombolnya difokus remote.
+                                    'absolute inset-x-0 bottom-0 z-30 bg-linear-to-t from-black/95 via-black/70 to-transparent p-3 sm:p-4 flex items-center justify-between transition-opacity duration-300 focus-within:opacity-100 focus-within:pointer-events-auto',
+                                    // Di TV kontrol selalu tampil: kontrol yang
+                                    // transparan tidak bisa dituju panah remote.
+                                    showPlayerControls || !isPlaying || isTv ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none',
                                 )}
                             >
                                 {/* Sisi Kiri: Play/Pause, Channel Switcher & Volume */}
@@ -680,7 +750,7 @@ export default function LiveTv({
                                         onClick={toggleRotation}
                                         aria-label={isLandscape ? 'Mode Potret' : 'Putar Layar ke Lanskap'}
                                         title={isLandscape ? 'Mode Potret' : 'Putar Layar'}
-                                        className="cinema-focus flex h-8 sm:h-9 items-center gap-1 rounded-full bg-white/15 px-2.5 sm:px-3 text-[11px] font-semibold text-white border border-white/15 transition hover:bg-white/25 active:scale-95"
+                                        className="cinema-focus flex h-8 sm:h-9 items-center gap-1 rounded-full bg-white/15 px-2.5 sm:px-3 text-[11px] font-semibold text-white border border-white/15 transition hover:bg-white/25 active:scale-95 tv:hidden"
                                     >
                                         <RotateCw className="h-3.5 w-3.5" />
                                         <span className="hidden xs:inline">{isLandscape ? 'Potret' : 'Putar'}</span>
@@ -689,10 +759,10 @@ export default function LiveTv({
                                     <button
                                         type="button"
                                         onClick={toggleFullscreen}
-                                        aria-label={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
+                                        aria-label={isTheater ? 'Keluar Layar Penuh' : 'Layar Penuh'}
                                         className="cinema-focus flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-white/15 hover:bg-white/25 text-white transition active:scale-95 border border-white/15"
                                     >
-                                        {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+                                        {isTheater ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
                                     </button>
                                 </div>
                             </div>
@@ -726,7 +796,7 @@ export default function LiveTv({
                     </div>
 
                     {/* KOLOM KANAN / BAWAH: DAFTAR CHANNEL & KATEGORI (EPG Mini) */}
-                    <div className="w-full lg:w-96 flex flex-col gap-4">
+                    <div className="w-full lg:w-96 flex flex-col gap-4 tv:w-72 tv:shrink-0">
                         {/* Filter Kategori Chips */}
                         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
                             {categories.map((cat) => {
@@ -762,7 +832,9 @@ export default function LiveTv({
                         </div>
 
                         {/* List Channel Cards (Scrollable) */}
-                        <div className="space-y-2 max-h-130 overflow-y-auto no-scrollbar pr-0.5">
+                        {/* p-1 memberi ruang bagi cincin fokus remote, yang
+                            kalau tidak terpotong oleh wadah gulir ini. */}
+                        <div className="space-y-2 max-h-130 overflow-y-auto no-scrollbar p-1 tv:max-h-[calc(100dvh-13rem)]">
                             {filteredChannels.length === 0 ? (
                                 <div className="p-8 text-center text-xs text-zinc-500">
                                     Tidak ada channel yang cocok dengan pencarian Anda.
@@ -776,6 +848,11 @@ export default function LiveTv({
                                             onClick={() => selectChannel(channel)}
                                             role="button"
                                             tabIndex={0}
+                                            aria-current={isCurrent ? 'true' : undefined}
+                                            // Remote mulai dari kanal yang
+                                            // sedang tayang: atas/bawah lalu OK
+                                            // langsung berganti kanal.
+                                            data-tv-autofocus={isCurrent ? true : undefined}
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter' || e.key === ' ') {
                                                     e.preventDefault();

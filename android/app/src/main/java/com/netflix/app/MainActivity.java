@@ -2,6 +2,7 @@ package com.netflix.app;
 
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.KeyEvent;
 import android.webkit.WebSettings;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.Plugin;
@@ -45,16 +46,38 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    private RemoteCursor remoteCursor;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(AdBlockerPlugin.class);
+        registerPlugin(TvRemotePlugin.class);
         super.onCreate(savedInstanceState);
         if (this.bridge != null && this.bridge.getWebView() != null) {
             WebSettings settings = this.bridge.getWebView().getSettings();
             settings.setMediaPlaybackRequiresUserGesture(false);
             settings.setSupportMultipleWindows(false);
             settings.setJavaScriptCanOpenWindowsAutomatically(false);
+
+            remoteCursor = new RemoteCursor(this, this.bridge.getWebView());
         }
+    }
+
+    RemoteCursor getRemoteCursor() {
+        return remoteCursor;
+    }
+
+    /**
+     * Tombol remote dicegat di sini sebelum sampai ke WebView, hanya selama
+     * mode kursor aktif. Di luar mode itu semua tombol diteruskan apa adanya.
+     */
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (remoteCursor != null && remoteCursor.handleKeyEvent(event)) {
+            return true;
+        }
+
+        return super.dispatchKeyEvent(event);
     }
 }
 

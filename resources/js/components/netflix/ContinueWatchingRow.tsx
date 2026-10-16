@@ -117,6 +117,7 @@ export default function ContinueWatchingRow({
                         type="button"
                         onClick={() => scroll('left')}
                         aria-label="Gulir ke kiri"
+                        data-tv-skip
                         className="cinema-focus absolute top-0 bottom-0 left-0 z-30 flex w-12 items-center justify-center bg-black/60 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black/80"
                     >
                         <ChevronLeft className="h-8 w-8" aria-hidden="true" />
@@ -145,6 +146,7 @@ export default function ContinueWatchingRow({
                         type="button"
                         onClick={() => scroll('right')}
                         aria-label="Gulir ke kanan"
+                        data-tv-skip
                         className="cinema-focus absolute top-0 right-0 bottom-0 z-30 flex w-12 items-center justify-center bg-black/60 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black/80"
                     >
                         <ChevronRight className="h-8 w-8" aria-hidden="true" />
@@ -188,7 +190,8 @@ function ContinueWatchingCard({
                     onPlay(item);
                 }
             }}
-            className="group/card relative h-36 w-60 shrink-0 cursor-pointer overflow-hidden rounded-md bg-zinc-900 transition-all duration-300 hover:z-20 hover:scale-105 md:h-44 md:w-72"
+            aria-label={`Lanjutkan ${item.title}`}
+            className="cinema-focus group/card relative h-36 w-60 shrink-0 cursor-pointer overflow-hidden rounded-md bg-zinc-900 transition-all duration-300 hover:z-20 hover:scale-105 md:h-44 md:w-72"
         >
             {imageUrl && !imgFailed ? (
                 <img
@@ -213,7 +216,7 @@ function ContinueWatchingCard({
             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent opacity-80 transition group-hover/card:opacity-90" />
 
             {/* Tombol Putar di Tengah saat Hover */}
-            <div className="absolute inset-0 flex items-center justify-center opacity-0 transition group-hover/card:opacity-100">
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 transition group-hover/card:opacity-100 group-focus-visible/card:opacity-100">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-black shadow-lg transition hover:scale-110">
                     <Play
                         className="h-6 w-6 fill-current pl-0.5"
@@ -222,11 +225,15 @@ function ContinueWatchingCard({
                 </div>
             </div>
 
-            {/* Tombol Hapus Pojok Kanan Atas */}
+            {/* Tombol Hapus Pojok Kanan Atas. Hanya muncul saat disentuh
+                tetikus dan letaknya di dalam kotak kartu, jadi remote TV tidak
+                bisa menjangkaunya secara arah. Dilewati agar tidak menjadi
+                tujuan fokus yang tak terlihat. */}
             <button
                 type="button"
                 onClick={(e) => onRemove(e, item)}
                 aria-label={`Hapus ${item.title} dari riwayat`}
+                data-tv-skip
                 className="cinema-focus absolute top-2 right-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-zinc-300 opacity-0 transition group-hover/card:opacity-100 hover:bg-black hover:text-white"
             >
                 <X className="h-4 w-4" aria-hidden="true" />

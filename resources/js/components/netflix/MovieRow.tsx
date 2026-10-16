@@ -172,6 +172,9 @@ function RailButton({
             }
             tabIndex={isVisible ? 0 : -1}
             aria-hidden={!isVisible}
+            // Remote menggeser rel dengan memindah fokus antarkartu, jadi
+            // tombol geser hanya akan menjadi persinggahan kosong.
+            data-tv-skip
             className={cn(
                 'cinema-focus absolute top-0 bottom-0 z-30 hidden w-12 items-center justify-center bg-gradient-to-r from-black/85 to-transparent transition-opacity duration-200 md:flex',
                 direction === 'left'

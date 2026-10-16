@@ -4,14 +4,15 @@ import {
     Play,
     Plus,
     Star,
-    ThumbsDown,
-    ThumbsUp,
     Volume2,
     VolumeX,
     X,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { useBackHandler } from '@/hooks/use-back-handler';
+import { useFocusScope } from '@/hooks/use-focus-scope';
+import { useTvMode } from '@/hooks/use-tv-mode';
 import { cn } from '@/lib/utils';
 import {
     Movie,
@@ -72,6 +73,20 @@ function MovieModalPanel({
     } | null>(null);
     const [isMuted, setIsMuted] = useState(true);
     const [showSeasonDropdown, setShowSeasonDropdown] = useState(false);
+
+    const isTv = useTvMode();
+    const panelRef = useRef<HTMLDivElement>(null);
+    const seasonMenuRef = useRef<HTMLDivElement>(null);
+
+    // Panel ini dialog: fokus masuk saat dibuka, remote tidak bisa keluar ke
+    // kartu di belakangnya, dan Kembali/Escape menutup lapisan teratas dulu.
+    useFocusScope(panelRef, open);
+    useFocusScope(seasonMenuRef, showSeasonDropdown);
+    useBackHandler(() => onOpenChange(false), { enabled: open, overlay: true });
+    useBackHandler(() => setShowSeasonDropdown(false), {
+        enabled: showSeasonDropdown,
+        overlay: true,
+    });
 
     // Status memuat diturunkan dari perbandingan nomor musim, bukan disetel di
     // dalam efek. Respons musim lama juga tidak bisa menimpa musim yang baru.
@@ -194,14 +209,21 @@ function MovieModalPanel({
                 if (e.target === e.currentTarget) onOpenChange(false);
             }}
         >
-            <div className="relative z-100 w-full max-w-4xl overflow-hidden rounded-xl bg-[#181818] shadow-2xl">
+            <div
+                ref={panelRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="movie-modal-title"
+                className="relative z-100 w-full max-w-4xl overflow-hidden rounded-xl bg-[#181818] shadow-2xl"
+            >
                 {/* Close Button */}
                 <button
                     type="button"
-                    className="absolute top-4 right-4 z-50 flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900 text-white transition hover:bg-zinc-800"
+                    aria-label="Tutup rincian"
+                    className="cinema-focus absolute top-4 right-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-zinc-900 text-white transition hover:bg-zinc-800"
                     onClick={() => onOpenChange(false)}
                 >
-                    <X className="h-5 w-5" />
+                    <X className="h-5 w-5" aria-hidden="true" />
                 </button>
 
                 {/* Hero Section */}
@@ -213,6 +235,10 @@ function MovieModalPanel({
                             title={title}
                             allow="autoplay; encrypted-media; fullscreen"
                             allowFullScreen
+                            // Di TV iframe YouTube menelan semua tombol remote
+                            // begitu difokus. Suaranya tetap diatur dari
+                            // tombol bisu di bawah.
+                            tabIndex={isTv ? -1 : undefined}
                         />
                     ) : (
                         <img
@@ -225,71 +251,81 @@ function MovieModalPanel({
 
                     {/* Bottom Controls */}
                     <div className="absolute right-0 bottom-0 left-0 p-6 md:p-10">
-                        <h2 className="mb-4 text-3xl font-bold drop-shadow-lg md:text-4xl lg:text-5xl">
+                        <h2
+                            id="movie-modal-title"
+                            className="mb-4 text-3xl font-bold drop-shadow-lg md:text-4xl lg:text-5xl"
+                        >
                             {title}
                         </h2>
 
+                        {/*
+                            Tombol suka dan tidak suka dibuang: keduanya tidak
+                            pernah menyimpan apa pun, dan di TV menjadi dua
+                            persinggahan fokus yang tidak berbuat apa-apa.
+                        */}
                         <div className="flex flex-wrap items-center gap-3">
                             <button
                                 type="button"
-                                className="flex items-center gap-2 rounded bg-white px-6 py-2 text-sm font-bold text-black transition hover:bg-white/80 md:px-8 md:py-2.5 md:text-lg"
+                                data-tv-autofocus
+                                className="cinema-focus flex min-h-11 items-center gap-2 rounded bg-white px-6 py-2 text-sm font-bold text-black transition hover:bg-white/80 md:px-8 md:py-2.5 md:text-lg"
                                 onClick={handlePlay}
                             >
                                 <Play
                                     className="h-5 w-5 md:h-6 md:w-6"
                                     fill="black"
+                                    aria-hidden="true"
                                 />
-                                Play
+                                Putar
                             </button>
 
-                            <button
-                                type="button"
-                                className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-zinc-400 text-white transition hover:border-white md:h-11 md:w-11"
-                                onClick={() => {
-                                    if (movie && onToggleMyList) {
-                                        onToggleMyList(movie);
+                            {onToggleMyList && (
+                                <button
+                                    type="button"
+                                    className="cinema-focus flex h-11 w-11 items-center justify-center rounded-full border-2 border-zinc-400 text-white transition hover:border-white"
+                                    onClick={() => onToggleMyList(movie)}
+                                    aria-label={
+                                        inMyList
+                                            ? 'Hapus dari Daftar Saya'
+                                            : 'Tambah ke Daftar Saya'
                                     }
-                                }}
-                                title={
-                                    inMyList
-                                        ? 'Remove from My List'
-                                        : 'Add to My List'
-                                }
-                            >
-                                {inMyList ? (
-                                    <Check className="h-5 w-5" />
-                                ) : (
-                                    <Plus className="h-5 w-5" />
-                                )}
-                            </button>
-
-                            <button
-                                type="button"
-                                className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-zinc-400 text-white transition hover:border-white md:h-11 md:w-11"
-                                title="I like this"
-                            >
-                                <ThumbsUp className="h-5 w-5" />
-                            </button>
-
-                            <button
-                                type="button"
-                                className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-zinc-400 text-white transition hover:border-white md:h-11 md:w-11"
-                                title="Not for me"
-                            >
-                                <ThumbsDown className="h-5 w-5" />
-                            </button>
+                                    aria-pressed={inMyList}
+                                >
+                                    {inMyList ? (
+                                        <Check
+                                            className="h-5 w-5"
+                                            aria-hidden="true"
+                                        />
+                                    ) : (
+                                        <Plus
+                                            className="h-5 w-5"
+                                            aria-hidden="true"
+                                        />
+                                    )}
+                                </button>
+                            )}
 
                             <div className="ml-auto flex items-center gap-3">
                                 {trailerEmbed && (
                                     <button
                                         type="button"
-                                        className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-zinc-400 text-white transition hover:border-white md:h-11 md:w-11"
+                                        className="cinema-focus flex h-11 w-11 items-center justify-center rounded-full border-2 border-zinc-400 text-white transition hover:border-white"
                                         onClick={() => setIsMuted(!isMuted)}
+                                        aria-label={
+                                            isMuted
+                                                ? 'Nyalakan suara cuplikan'
+                                                : 'Bisukan cuplikan'
+                                        }
                                     >
                                         {isMuted ? (
-                                            <VolumeX className="h-5 w-5" />
+                                            <VolumeX
+                                                className="h-5 w-5"
+                                                aria-hidden="true"
+                                            />
                                         ) : (
-                                            <Volume2 className="h-5 w-5" />
+                                            <Volume2
+                                                className="h-5 w-5"
+                                                aria-hidden="true"
+                                            />
                                         )}
                                     </button>
                                 )}
@@ -356,8 +392,8 @@ function MovieModalPanel({
                         {/* Overview */}
                         <p className="text-sm leading-relaxed text-zinc-200 md:text-base">
                             {loading
-                                ? 'Loading description...'
-                                : overview || 'No description available.'}
+                                ? 'Memuat sinopsis...'
+                                : overview || 'Sinopsis belum tersedia.'}
                         </p>
                     </div>
 
@@ -389,15 +425,9 @@ function MovieModalPanel({
                                 </div>
                             )}
 
-                        <div>
-                            <span className="text-zinc-500">
-                                This movie is:{' '}
-                            </span>
-                            <span className="text-zinc-200">
-                                Exciting, Suspenseful
-                            </span>
-                        </div>
-
+                        {/* Baris "This movie is: Exciting, Suspenseful"
+                            dibuang: teksnya ditulis mati dan tampil sama untuk
+                            setiap judul. */}
                         <button
                             type="button"
                             className="cinema-focus mt-4 text-sm font-medium text-zinc-300 underline underline-offset-4 hover:text-white"
@@ -421,7 +451,9 @@ function MovieModalPanel({
                                 <div className="relative">
                                     <button
                                         type="button"
-                                        className="cinema-focus flex items-center gap-2 rounded border border-zinc-600 bg-zinc-800 px-4 py-2 text-sm font-medium transition hover:border-zinc-400"
+                                        aria-expanded={showSeasonDropdown}
+                                        aria-haspopup="true"
+                                        className="cinema-focus flex min-h-11 items-center gap-2 rounded border border-zinc-600 bg-zinc-800 px-4 py-2 text-sm font-medium transition hover:border-zinc-400"
                                         onClick={() =>
                                             setShowSeasonDropdown(
                                                 !showSeasonDropdown,
@@ -439,7 +471,10 @@ function MovieModalPanel({
                                     </button>
 
                                     {showSeasonDropdown && (
-                                        <div className="absolute right-0 z-50 mt-2 max-h-64 w-36 overflow-y-auto rounded border border-zinc-700 bg-zinc-900 py-1 shadow-xl">
+                                        <div
+                                            ref={seasonMenuRef}
+                                            className="absolute right-0 z-50 mt-2 max-h-64 w-36 overflow-y-auto rounded border border-zinc-700 bg-zinc-900 py-1 shadow-xl"
+                                        >
                                             {Array.from(
                                                 { length: numberOfSeasons },
                                                 (_, i) => i + 1,
@@ -447,8 +482,18 @@ function MovieModalPanel({
                                                 <button
                                                     key={s}
                                                     type="button"
+                                                    aria-current={
+                                                        s === season
+                                                            ? 'true'
+                                                            : undefined
+                                                    }
+                                                    data-tv-autofocus={
+                                                        s === season
+                                                            ? true
+                                                            : undefined
+                                                    }
                                                     className={cn(
-                                                        'w-full px-4 py-2 text-left text-sm hover:bg-zinc-800',
+                                                        'w-full px-4 py-2 text-left text-sm hover:bg-zinc-800 focus-visible:bg-zinc-800',
                                                         s === season &&
                                                             'bg-zinc-800 font-semibold text-[#E50914]',
                                                     )}
@@ -479,7 +524,7 @@ function MovieModalPanel({
                                     <button
                                         key={ep.id}
                                         type="button"
-                                        className="group flex w-full items-start gap-4 rounded-lg p-3 text-left transition hover:bg-zinc-800"
+                                        className="cinema-focus group flex w-full items-start gap-4 rounded-lg p-3 text-left transition hover:bg-zinc-800 focus-visible:bg-zinc-800"
                                         onClick={() => {
                                             const query = new URLSearchParams();
                                             const finalTitle = title !== 'Untitled' ? title : '';
@@ -511,7 +556,7 @@ function MovieModalPanel({
                                                     Tanpa gambar
                                                 </div>
                                             )}
-                                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition group-hover:opacity-100">
+                                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100">
                                                 <Play
                                                     className="h-10 w-10 text-white"
                                                     fill="white"

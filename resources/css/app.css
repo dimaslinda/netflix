@@ -7,6 +7,9 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Aktif saat aplikasi dipakai lewat remote TV. Lihat lib/tv/tv-mode.ts. */
+@custom-variant tv (&:is(.tv-mode *));
+
 @theme {
     --font-sans:
         'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
@@ -437,6 +440,10 @@ iframe {
         --cinema-accent: #e8a33d;
         --cinema-accent-ink: #1a1305;
 
+        /* Cincin fokus. Kontrasnya di atas --cinema-base sekitar 4:1, di atas
+           ambang 3:1 untuk indikator fokus. */
+        --cinema-focus: #e50914;
+
         /* Radius bertingkat, bukan pil untuk semuanya: kartu tetap tegas,
            panel sedikit lunak, hanya lencana yang benar-benar bulat. */
         --cinema-radius-card: 4px;
@@ -453,22 +460,64 @@ iframe {
     }
 }
 
+/* Nama lain yang sudah dipakai di halaman tonton, Live TV, dan baris
+   Lanjutkan Menonton, tetapi sebelumnya tidak pernah didefinisikan. */
+@utility no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+        display: none;
+    }
+}
+
 /*
  | Cincin fokus tunggal untuk seluruh lapisan sinema. Latarnya gelap, jadi
  | outline bawaan peramban nyaris tidak terlihat dan harus diganti, bukan
- | dihapus.
+ | dihapus. Bentuk sudut mengikuti elemennya sendiri, supaya tombol bulat
+ | tidak berubah menjadi kotak saat difokus.
  */
 @layer base {
     .cinema-focus:focus-visible,
     button.cinema-focus:focus-visible,
     a.cinema-focus:focus-visible {
-        outline: 3px solid #E50914;
+        outline: 3px solid var(--cinema-focus);
         outline-offset: 3px;
-        border-radius: var(--cinema-radius-card);
         box-shadow: 0 0 18px rgba(229, 9, 20, 0.7);
         transform: scale(1.03);
         transition: transform 0.15s ease, outline 0.15s ease, box-shadow 0.15s ease;
         z-index: 20;
+    }
+}
+
+/*
+ | Remote TV
+ |
+ | Layar dilihat dari jarak sekitar tiga meter, jadi cincin fokus dipertebal
+ | dan setiap elemen terfokus mendapat cincin, termasuk yang tidak memakai
+ | kelas cinema-focus. scroll-padding menjaga elemen yang digulir ke tepi tidak
+ | tertutup bilah navigasi tetap di atas.
+ */
+@layer base {
+    .tv-mode {
+        scroll-padding-top: 80px;
+        scroll-padding-bottom: 32px;
+    }
+
+    .tv-mode :focus-visible {
+        outline: 4px solid var(--cinema-focus);
+        outline-offset: 3px;
+    }
+
+    .tv-mode .cinema-focus:focus-visible {
+        outline-width: 4px;
+        transform: scale(1.06);
+    }
+
+    /* Rel horizontal: kartu yang difokus tidak menempel ke tepi layar. */
+    .tv-mode .scrollbar-hide,
+    .tv-mode .no-scrollbar {
+        scroll-padding-inline: 48px;
     }
 }
 

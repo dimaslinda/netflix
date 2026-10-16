@@ -58,20 +58,20 @@ export default function Top10Row({ title, movies, onSelect }: Top10RowProps) {
 
     return (
         <div className="group/row relative space-y-1 md:space-y-2">
+            {/* Tautan "Explore All" dibuang: tidak pernah menuju ke mana pun,
+                dan di TV menjadi persinggahan fokus yang tidak berbuat apa-apa. */}
             <div className="flex items-center gap-2 px-4 md:px-12 lg:px-16">
-                <h2 className="cursor-pointer text-base font-bold text-[#e5e5e5] transition duration-200 hover:text-white md:text-xl lg:text-2xl">
+                <h2 className="text-base font-bold text-[#e5e5e5] md:text-xl lg:text-2xl">
                     {title}
                 </h2>
-                <span className="flex cursor-pointer items-center gap-1 text-sm font-semibold text-[#54b9c5] opacity-0 transition-opacity duration-300 group-hover/row:opacity-100">
-                    Explore All
-                    <ChevronRight className="h-4 w-4" />
-                </span>
             </div>
 
             <div className="relative">
                 {/* Left Arrow */}
                 <button
                     type="button"
+                    aria-label="Geser ke kiri"
+                    data-tv-skip
                     className={`absolute top-0 bottom-0 left-0 z-40 flex w-12 items-center justify-center bg-gradient-to-r from-black/80 to-transparent opacity-0 transition-all duration-300 group-hover/row:opacity-100 md:w-16 ${!showLeftArrow ? 'pointer-events-none !opacity-0' : ''}`}
                     onClick={() => handleClick('left')}
                 >
@@ -95,10 +95,14 @@ export default function Top10Row({ title, movies, onSelect }: Top10RowProps) {
                             ? new Date(movie.release_date) > cutoffDate
                             : false;
 
+                        // Tombol sungguhan, bukan div ber-onClick: div tidak
+                        // bisa dijangkau Tab maupun remote TV sama sekali.
                         return (
-                            <div
+                            <button
                                 key={movie.id}
-                                className="group/card relative flex flex-none cursor-pointer items-end"
+                                type="button"
+                                aria-label={`Peringkat ${index + 1}: ${title ?? 'Tanpa judul'}`}
+                                className="cinema-focus group/card relative flex flex-none cursor-pointer items-end text-left"
                                 onClick={() => onSelect?.(movie)}
                             >
                                 {/* Large Number */}
@@ -117,7 +121,7 @@ export default function Top10Row({ title, movies, onSelect }: Top10RowProps) {
                                 <div className="relative mb-0 -ml-8 w-[100px] overflow-hidden rounded transition-transform duration-300 group-hover/card:scale-105 md:-ml-12 md:w-[130px] lg:w-[150px]">
                                     <img
                                         src={imageUrl}
-                                        alt={title}
+                                        alt=""
                                         className="aspect-[2/3] w-full object-cover"
                                         loading="lazy"
                                     />
@@ -138,7 +142,7 @@ export default function Top10Row({ title, movies, onSelect }: Top10RowProps) {
                                         </div>
                                     )}
                                 </div>
-                            </div>
+                            </button>
                         );
                     })}
                 </div>
@@ -146,6 +150,8 @@ export default function Top10Row({ title, movies, onSelect }: Top10RowProps) {
                 {/* Right Arrow */}
                 <button
                     type="button"
+                    aria-label="Geser ke kanan"
+                    data-tv-skip
                     className={`absolute top-0 right-0 bottom-0 z-40 flex w-12 items-center justify-center bg-gradient-to-l from-black/80 to-transparent opacity-0 transition-all duration-300 group-hover/row:opacity-100 md:w-16 ${!showRightArrow ? 'pointer-events-none !opacity-0' : ''}`}
                     onClick={() => handleClick('right')}
                 >

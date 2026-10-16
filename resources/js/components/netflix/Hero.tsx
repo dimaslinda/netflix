@@ -1,6 +1,7 @@
 import { Info, Play, Star, Volume2, VolumeX } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
+import { useTvMode } from '@/hooks/use-tv-mode';
 import { cn } from '@/lib/utils';
 import { Movie } from '@/types/tmdb';
 
@@ -26,6 +27,7 @@ const OVERVIEW_LIMIT = 220;
  * paling mahal yang bisa dipasang sebuah katalog.
  */
 export default function Hero({ movie, onPlay, onMoreInfo }: HeroProps) {
+    const isTv = useTvMode();
     const [isMuted, setIsMuted] = useState(true);
     const [trailerUrl, setTrailerUrl] = useState<string | null>(null);
     const [isTrailerVisible, setIsTrailerVisible] = useState(false);
@@ -74,7 +76,10 @@ export default function Hero({ movie, onPlay, onMoreInfo }: HeroProps) {
         return () => clearTimeout(timer);
     }, [loadTrailer]);
 
-    const isRevealed = !artUrl || isArtLoaded;
+    // Di TV teks dan tombol tidak menunggu seni kunci: gambar besar lambat
+    // dimuat di perangkat TV, dan selama tombol Putar masih transparan remote
+    // tidak punya tujuan pertama.
+    const isRevealed = !artUrl || isArtLoaded || isTv;
 
     const toggleTrailerSound = () => {
         const next = !isMuted;
@@ -111,6 +116,10 @@ export default function Hero({ movie, onPlay, onMoreInfo }: HeroProps) {
                         src={trailerUrl}
                         title={`Cuplikan ${title}`}
                         allow="autoplay; encrypted-media"
+                        // Latar dekoratif tanpa interaksi. Bila iframe bisa
+                        // difokus, remote TV yang masuk ke dalamnya tidak bisa
+                        // keluar lagi karena tombolnya ditangkap YouTube.
+                        tabIndex={-1}
                         className="pointer-events-none absolute inset-0 h-full w-full scale-150"
                     />
                 )}
@@ -165,6 +174,7 @@ export default function Hero({ movie, onPlay, onMoreInfo }: HeroProps) {
                     <button
                         type="button"
                         onClick={() => onPlay?.(movie)}
+                        data-tv-autofocus
                         className="cinema-focus flex min-h-11 items-center gap-2 rounded bg-[var(--cinema-ink)] px-6 text-[15px] font-bold text-[var(--cinema-base)] transition hover:bg-white active:scale-[0.98]"
                     >
                         <Play
